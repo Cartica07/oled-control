@@ -1,47 +1,46 @@
 /**
  * Adafruit GFX Font Metrics
- * Métricas exactas de las fuentes de Adafruit para replicar pixel-perfect
- * el comportamiento de la OLED real en el simulador web.
+ * Métricas EXACTAS de Adafruit_GFX.cpp replicadas pixel-perfect
  * 
- * Basado en:
- * - Adafruit_GFX.cpp (font rendering)
- * - FreeSans font metrics
- * 
- * Cada tamaño es: { width: pixels_por_caracter, height: pixels, baseline: offset_y }
+ * Basado directamente en:
+ * - Adafruit_GFX.cpp línea 1493: cursor_x += textsize * 6;
+ * - Adafruit_GFX.cpp línea 1494: cursor_y += textsize * 8;
+ * - Sin espaciado extra entre líneas (lineHeight = height)
  */
 
 export const fontMetrics = {
-  // Tamaño 1: 5 píxeles de ancho, 8 píxeles de alto (font: 5x8)
+  // Tamaño 1: 5 píxeles base, escala 1x = 6 ancho, 8 alto
+  // Cálculo: width = 5 (char) + 1 (spacing) = 6
   1: {
-    width: 6,      // Ancho promedio con espacio
-    height: 8,
+    width: 6,      // 5 píxeles caractér + 1 espaciado
+    height: 8,     // Altura exacta del carácter
     charWidth: 5,
     baseline: 6,
-    lineHeight: 10 // con espaciado
+    lineHeight: 8  // SIN espaciado extra (igual a height)
   },
-  // Tamaño 2: 10 píxeles de ancho, 16 píxeles de alto (2x scale)
+  // Tamaño 2: 5 píxeles base * 2 = 10, + 1 spacing * 2 = 2 → 12 ancho, 16 alto
   2: {
-    width: 12,
-    height: 16,
+    width: 12,     // (5 * 2) + (1 * 2) = 12
+    height: 16,    // 8 * 2
     charWidth: 10,
     baseline: 12,
-    lineHeight: 19
+    lineHeight: 16 // SIN espaciado extra (igual a height)
   },
-  // Tamaño 3: 15 píxeles de ancho, 24 píxeles de alto (3x scale)
+  // Tamaño 3: 5 píxeles base * 3 = 15, + 1 spacing * 3 = 3 → 18 ancho, 24 alto
   3: {
-    width: 18,
-    height: 24,
+    width: 18,     // (5 * 3) + (1 * 3) = 18
+    height: 24,    // 8 * 3
     charWidth: 15,
     baseline: 18,
-    lineHeight: 28
+    lineHeight: 24 // SIN espaciado extra (igual a height)
   },
-  // Tamaño 4: 20 píxeles de ancho, 32 píxeles de alto (4x scale)
+  // Tamaño 4: 5 píxeles base * 4 = 20, + 1 spacing * 4 = 4 → 24 ancho, 32 alto
   4: {
-    width: 24,
-    height: 32,
+    width: 24,     // (5 * 4) + (1 * 4) = 24
+    height: 32,    // 8 * 4
     charWidth: 20,
     baseline: 24,
-    lineHeight: 37
+    lineHeight: 32 // SIN espaciado extra (igual a height)
   }
 };
 
@@ -63,7 +62,6 @@ export function calcularAnchoTexto(texto, tamano) {
       ancho += metrics.width * 4; // tab = 4 espacios
     } else {
       // Mayoría de caracteres: ancho estándar
-      // Se puede refinar con tabla de kerning si es necesario
       ancho += metrics.width;
     }
   }
