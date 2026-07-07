@@ -4,7 +4,7 @@
  */
 
 import { dibujarOLED } from './renderer.js';
-import { cargarEstado, enviarEstado, db } from './firebase.js';
+import { cargarEstado, enviarEstado } from './firebase.js';
 import {
   obtenerElementos,
   poblarControles,
@@ -15,6 +15,7 @@ import {
   activarLedTransmision,
   desactivarLedTransmision
 } from './ui.js';
+import { calcularAnchoTexto } from './fonts.js';
 
 // ===================================================
 // Estado Global
@@ -32,6 +33,7 @@ let idAnimacionScroll = null;
 let scrollX = 128;
 let ultimoTs = null;
 const VELOCIDAD_SCROLL = 40; // px/segundo
+const ANCHO_OLED = 128;
 
 // ===================================================
 // Animación del Scroll
@@ -45,7 +47,7 @@ function detenerScroll() {
 
 function iniciarScroll() {
   detenerScroll();
-  scrollX = 128;
+  scrollX = ANCHO_OLED;
   ultimoTs = null;
 
   function frame(ts) {
@@ -53,12 +55,10 @@ function iniciarScroll() {
     const dt = (ts - ultimoTs) / 1000;
     ultimoTs = ts;
 
-    // Calcular ancho del texto para el loop
-    const { calcularAnchoTexto } = await import('./fonts.js');
     const anchoTexto = calcularAnchoTexto(estadoActual.texto, estadoActual.tamano);
 
     scrollX -= VELOCIDAD_SCROLL * dt;
-    if (scrollX < -anchoTexto) scrollX = 128;
+    if (scrollX < -anchoTexto) scrollX = ANCHO_OLED;
 
     dibujarOLED(elementos.canvas, estadoActual, scrollX);
     idAnimacionScroll = requestAnimationFrame(frame);
@@ -127,7 +127,7 @@ function configurarEventos() {
 // ===================================================
 async function cargarEstadoInicial() {
   try {
-    const resultado = cargarEstado();
+    const resultado = await cargarEstado();
     
     if (resultado.exito) {
       if (!resultado.vacio) {
