@@ -1,4 +1,4 @@
-/**
+/**ui
  * UI Controller
  * Maneja los eventos de la interfaz de usuario y actualización de controles
  */
@@ -7,16 +7,34 @@
  * Actualiza los controles con los valores del estado actual
  */
 export function poblarControles(estado, elementos) {
-  elementos.texto.value = estado.texto;
-  elementos.contador.textContent = String(estado.texto.length);
-  elementos.invertido.checked = !!estado.invertido;
+  // Para Texto
+  if (elementos.texto) {
+    elementos.texto.value = estado.texto || '';
+    elementos.contador.textContent = String((estado.texto || '').length);
+  }
   
-  marcarSegmentoActivo(elementos.grupoTamano, estado.tamano);
-  marcarSegmentoActivo(elementos.grupoAlineacion, estado.alineacion);
+  if (elementos.invertido) {
+    elementos.invertido.checked = !!estado.invertido;
+  }
   
-  elementos.grupoModo.querySelectorAll('input[name="modoTexto"]').forEach(r => {
-    r.checked = (r.value === estado.modoTexto);
-  });
+  if (elementos.grupoTamano) {
+    marcarSegmentoActivo(elementos.grupoTamano, estado.tamano);
+  }
+  
+  if (elementos.grupoAlineacion) {
+    marcarSegmentoActivo(elementos.grupoAlineacion, estado.alineacion);
+  }
+  
+  if (elementos.grupoModo) {
+    elementos.grupoModo.querySelectorAll('input[name="modoTexto"]').forEach(r => {
+      r.checked = (r.value === estado.modoTexto);
+    });
+  }
+  
+  // Marcar tipo de contenido
+  if (elementos.grupoTipo) {
+    marcarSegmentoActivo(elementos.grupoTipo, estado.tipo || 'texto');
+  }
 }
 
 /**
@@ -87,6 +105,11 @@ export function desactivarLedTransmision(elementos, delay = 250) {
  */
 export function obtenerElementos() {
   return {
+    // Selector de tipo
+    grupoTipo: document.getElementById('grupoTipo'),
+    seccionTexto: document.getElementById('seccionTexto'),
+    seccionImagen: document.getElementById('seccionImagen'),
+    
     // Texto y contador
     texto: document.getElementById('texto'),
     contador: document.getElementById('contador'),
@@ -96,6 +119,12 @@ export function obtenerElementos() {
     grupoAlineacion: document.getElementById('grupoAlineacion'),
     grupoModo: document.getElementById('grupoModo'),
     invertido: document.getElementById('invertido'),
+    
+    // Controles de imagen
+    cargadorImagen: document.getElementById('cargadorImagen'),
+    umbral: document.getElementById('umbral'),
+    valorUmbral: document.getElementById('valorUmbral'),
+    avisoImagen: document.getElementById('avisoImagen'),
     
     // Botón enviar
     botonEnviar: document.getElementById('enviar'),
