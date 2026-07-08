@@ -286,47 +286,47 @@ export async function procesarImagen(file, targetWidth = 128, targetHeight = 64,
 }
 
 /**
- * Dibuja un preview de la imagen procesada en un canvas
- * @param {HTMLCanvasElement} canvas - Canvas destino
+ * Dibuja un preview de la imagen procesada en un canvas.
+ *
+ * Importante: NO toca canvas.width/height ni repinta el fondo. El
+ * llamador (dibujarOLED en renderer.js) ya pintó el fondo con el
+ * color correcto según "invertido" antes de llamar acá -- si acá
+ * reseteábamos el canvas y usábamos blanco/negro fijos, el switch
+ * "Invertido" quedaba sin efecto en el preview (aunque sí se
+ * aplicaba en la OLED física, porque display.invertDisplay() no
+ * depende de este código).
+ *
+ * @param {HTMLCanvasElement} canvas - Canvas destino (ya con el fondo pintado)
  * @param {string} base64Data - Datos de imagen en Base64
  * @param {number} width - Ancho de la imagen
  * @param {number} height - Alto de la imagen
+ * @param {string} colorFrente - Color de los píxeles "encendidos" (bit=1),
+ *                                ya resuelto según invertido por el llamador.
  */
-export function dibujarPreviewImagen(canvas, base64Data, width, height) {
+export function dibujarPreviewImagen(canvas, base64Data, width, height, colorFrente = '#ffffff') {
   // Decodificar Base64 a bytes
   const binaryString = atob(base64Data);
   const bitmap = new Uint8Array(binaryString.length);
-  
+
   for (let i = 0; i < binaryString.length; i++) {
     bitmap[i] = binaryString.charCodeAt(i);
   }
-  
-  // Configurar canvas
-  canvas.width = width;
-  canvas.height = height;
-  
+
   const ctx = canvas.getContext('2d');
-  const imageData = ctx.createImageData(width, height);
-  const data = imageData.data;
-  
-  // Reconstruir imagen desde bitmap
   const bytesPorFila = Math.ceil(width / 8);
-  
+
+  ctx.fillStyle = colorFrente;
+
+  // Solo se dibujan los píxeles "encendidos" (bit=1); los apagados
+  // quedan con el color de fondo que el llamador ya pintó.
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      const byteIndex = y * bytesPorFila + Math.floor(x / 8);
-      const bitPosition = 7 - (x % 8);
-      
-      const bit = (bitmap[byteIndex] >> bitPosition) & 1;
-      const color = bit ? 255 : 0;
-      
-      const pixelIndex = (y * width + x) * 4;
-      data[pixelIndex] = color;     // R
-      data[pixelIndex + 1] = color; // G
-      data[pixelIndex + 2] = color; // B
-      data[pixelIndex + 3] = 255;   // A
+      const byteIndex = y * bytesPorFila + (x >> 3);
+      const bitPosition = 7 - (x & 7);
+
+      if ((bitmap[byteIndex] >> bitPosition) & 1) {
+        ctx.fillRect(x, y, 1, 1);
+      }
     }
   }
-  
-  ctx.putImageData(imageData, 0, 0);
 }
