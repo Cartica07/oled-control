@@ -1,4 +1,4 @@
-/**
+/**firebase
  * Firebase Integration
  * Maneja la carga y almacenamiento de configuración en Firebase Realtime Database
  */
@@ -35,22 +35,30 @@ export async function cargarEstado() {
       const config = pantalla.config || {};
 
       return {
+        tipo: config.tipo || 'texto',
         texto: (typeof pantalla.texto === 'string') ? pantalla.texto : 'Hola Mundo',
         tamano: Number(config.tamano) || 2,
         alineacion: config.alineacion || 'centro',
         invertido: !!config.invertido,
         modoTexto: config.modoTexto || 'ajustar',
+        imagenData: config.imagenData || '',
+        imagenAncho: Number(config.imagenAncho) || 0,
+        imagenAlto: Number(config.imagenAlto) || 0,
         version: Number(datos.version) || 0,
         exito: true
       };
     } else {
       // No hay datos aún, retornar estado por defecto
       return {
+        tipo: 'texto',
         texto: 'Hola Mundo',
         tamano: 2,
         alineacion: 'centro',
         invertido: false,
         modoTexto: 'ajustar',
+        imagenData: '',
+        imagenAncho: 0,
+        imagenAlto: 0,
         version: 0,
         exito: true,
         vacio: true
@@ -78,10 +86,14 @@ export async function enviarEstado(estado) {
       pantalla: {
         texto: estado.texto,
         config: {
+          tipo: estado.tipo,
           tamano: estado.tamano,
           alineacion: estado.alineacion,
           invertido: estado.invertido,
-          modoTexto: estado.modoTexto
+          modoTexto: estado.modoTexto,
+          imagenData: estado.imagenData,
+          imagenAncho: estado.imagenAncho,
+          imagenAlto: estado.imagenAlto
         }
       }
     });
