@@ -231,8 +231,13 @@ fieldset .rotulo {
   margin-bottom: 8px;
 }
 
-textarea {
+textarea,
+input[type="file"],
+input[type="range"] {
   width: 100%;
+}
+
+textarea {
   resize: vertical;
   min-height: 64px;
   background: #0a0805;
@@ -245,12 +250,40 @@ textarea {
   line-height: 1.5;
 }
 
+input[type="file"] {
+  padding: 8px 12px;
+  background: #0a0805;
+  border: 1px solid var(--metal-borde);
+  border-radius: 8px;
+  color: #f3e9d4;
+  font-family: var(--fuente-data);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+input[type="range"] {
+  accent-color: var(--ambar);
+  height: 6px;
+  border-radius: 3px;
+  background: #0a0805;
+  border: 1px solid var(--metal-borde);
+}
+
 textarea:focus,
+input[type="file"]:focus,
+input[type="range"]:focus,
 button:focus-visible,
 .segmento button:focus-visible,
 .modo-opcion:focus-within {
   outline: 2px solid var(--ambar);
   outline-offset: 2px;
+}
+
+.descripcion-campo {
+  font-size: 12px;
+  color: #8a8070;
+  margin: 6px 0 0;
+  line-height: 1.4;
 }
 
 .contador {
@@ -259,6 +292,24 @@ button:focus-visible,
   font-size: 10px;
   color: #635a4b;
   margin-top: 4px;
+}
+
+.control-rango {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.control-rango input[type="range"] {
+  flex: 1;
+}
+
+.valor-rango {
+  font-family: var(--fuente-data);
+  font-size: 13px;
+  color: var(--ambar-suave);
+  min-width: 40px;
+  text-align: right;
 }
 
 fieldset {
@@ -453,6 +504,16 @@ button#enviar:disabled {
 
 .estado-linea.error {
   color: var(--led-error);
+}
+
+.aviso {
+  padding: 10px 12px;
+  background: #1a1206;
+  border: 1px solid var(--ambar-tenue);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--ambar-suave);
+  margin-top: 12px;
 }
 
 footer {
