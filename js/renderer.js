@@ -1,4 +1,4 @@
-/**
+/**renderer
  * OLED Renderer
  * Dibuja pixel-perfect el bitmap real de Adafruit_GFX (glcdfont.c),
  * el mismo que usa pantalla.cpp en el ESP8266. Nada de fuentes del
@@ -15,6 +15,8 @@ import {
   calcularX,
   dibujarTextoBitmap
 } from './fonts.js';
+
+import { dibujarPreviewImagen } from './imageProcessor.js';
 
 const ANCHO = 128;
 const ALTO = 64;
@@ -34,6 +36,13 @@ export function dibujarOLED(canvas, estado, scrollX = null) {
   ctx.fillRect(0, 0, ANCHO, ALTO);
   ctx.fillStyle = frente;
 
+  // V1.6: Si tipo es "imagen", renderizar bitmap monocromático
+  if (estado.tipo === 'imagen' && estado.imagenData) {
+    dibujarPreviewImagen(canvas, estado.imagenData, estado.imagenAncho, estado.imagenAlto);
+    return;
+  }
+
+  // Modos de texto (comportamiento V1.5 e inferiores)
   if (estado.modoTexto === 'ajustar') {
     renderizarAjustar(ctx, estado, frente);
   } else if (estado.modoTexto === 'reducir') {
