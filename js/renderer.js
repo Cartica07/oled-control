@@ -38,7 +38,7 @@ export function dibujarOLED(canvas, estado, scrollX = null) {
 
   // V1.6: Si tipo es "imagen", renderizar bitmap monocromático
   if (estado.tipo === 'imagen' && estado.imagenData) {
-    dibujarPreviewImagen(canvas, estado.imagenData, estado.imagenAncho, estado.imagenAlto);
+    dibujarPreviewImagen(canvas, estado.imagenData, estado.imagenAncho, estado.imagenAlto, frente);
     return;
   }
 
