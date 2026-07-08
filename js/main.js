@@ -92,18 +92,21 @@ function renderizar() {
 // ===================================================
 // Gestión de Tipo de Contenido
 // ===================================================
-function cambiarTipo(nuevoTipo) {
-  estadoActual.tipo = nuevoTipo;
-  marcarSegmentoActivo(elementos.grupoTipo, nuevoTipo);
+function mostrarSeccionSegunTipo(tipo) {
+  marcarSegmentoActivo(elementos.grupoTipo, tipo);
 
-  if (nuevoTipo === 'texto') {
+  if (tipo === 'texto') {
     elementos.seccionTexto.style.display = 'block';
     elementos.seccionImagen.style.display = 'none';
   } else {
     elementos.seccionTexto.style.display = 'none';
     elementos.seccionImagen.style.display = 'block';
   }
+}
 
+function cambiarTipo(nuevoTipo) {
+  estadoActual.tipo = nuevoTipo;
+  mostrarSeccionSegunTipo(nuevoTipo);
   renderizar();
 }
 
@@ -228,6 +231,7 @@ async function cargarEstadoInicial() {
       }
 
       poblarControles(estadoActual, elementos);
+      mostrarSeccionSegunTipo(estadoActual.tipo);
       renderizar();
       marcarConexion('conectado', 'ok', elementos);
       marcarEstado(
