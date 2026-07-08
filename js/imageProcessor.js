@@ -46,7 +46,13 @@ export async function cargarYRedimensionarImagen(file, targetWidth, targetHeight
         canvas.height = targetHeight;
         
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        
+
+        // Suavizado de alta calidad al achicar la imagen: reduce el
+        // aliasing/ruido que deja un downscale sin suavizar, lo que
+        // ayuda tanto al umbral simple como al dithering posteriores.
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
         // Fondo negro
         ctx.fillStyle = '#000000';
         ctx.fillRect(0, 0, targetWidth, targetHeight);
@@ -181,15 +187,73 @@ function codificarBase64(data) {
 }
 
 /**
+ * Convierte una imagen en escala de grises a bitmap monocromático (1 bpp)
+ * usando dithering de Floyd-Steinberg: en vez de cortar en seco como el
+ * umbral simple, difunde el error de cada píxel hacia sus vecinos, así
+ * los tonos medios (sombras, degradados, fotos) se representan con una
+ * trama de puntos en vez de perderse en un solo bloque blanco o negro.
+ * Es más fiel al original en fotos; en imágenes ya binarias (logos,
+ * texto) el error es ~0 y el resultado es prácticamente el mismo que
+ * el umbral simple.
+ *
+ * @param {HTMLCanvasElement} canvas - Canvas con imagen en escala de grises
+ * @param {number} umbral - Punto de corte medio (0-255, default 127)
+ * @returns {{bitmap: Uint8Array, width: number, height: number}}
+ */
+function convertirAMonocromaticoDither(canvas, umbral = 127) {
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+
+  const width = canvas.width;
+  const height = canvas.height;
+
+  // Copia de trabajo en punto flotante: el error difundido puede
+  // sacar los valores fuera del rango 0-255 durante el proceso.
+  const gris = new Float32Array(width * height);
+  for (let p = 0; p < width * height; p++) gris[p] = data[p * 4];
+
+  const bytesPorFila = Math.ceil(width / 8);
+  const bitmap = new Uint8Array(bytesPorFila * height);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x;
+      const viejo = gris[idx];
+      const nuevo = viejo >= umbral ? 255 : 0;
+      const error = viejo - nuevo;
+
+      if (nuevo === 255) {
+        const byteIndex = y * bytesPorFila + (x >> 3);
+        const bitPosition = 7 - (x & 7);
+        bitmap[byteIndex] |= (1 << bitPosition);
+      }
+
+      // Distribución de error de Floyd-Steinberg (7/16, 3/16, 5/16, 1/16)
+      if (x + 1 < width) gris[idx + 1] += error * 7 / 16;
+      if (y + 1 < height) {
+        if (x > 0) gris[idx - 1 + width] += error * 3 / 16;
+        gris[idx + width] += error * 5 / 16;
+        if (x + 1 < width) gris[idx + 1 + width] += error * 1 / 16;
+      }
+    }
+  }
+
+  return { bitmap, width, height };
+}
+
+/**
  * Procesa una imagen: redimensiona, convierte a monocromático y codifica en Base64
  * 
  * @param {File} file - Archivo de imagen cargado
  * @param {number} targetWidth - Ancho destino (128)
  * @param {number} targetHeight - Alto destino (64)
  * @param {number} umbral - Umbral de binarización (0-255)
+ * @param {boolean} dithering - true = Floyd-Steinberg (mejor para fotos/degradados),
+ *                              false = umbral simple (mejor para logos/texto)
  * @returns {Promise<{imagenData: string, imagenAncho: number, imagenAlto: number, canvas: HTMLCanvasElement}>}
  */
-export async function procesarImagen(file, targetWidth = 128, targetHeight = 64, umbral = 127) {
+export async function procesarImagen(file, targetWidth = 128, targetHeight = 64, umbral = 127, dithering = true) {
   try {
     // 1. Cargar y redimensionar
     const { canvas: canvasRedim } = await cargarYRedimensionarImagen(
@@ -201,8 +265,10 @@ export async function procesarImagen(file, targetWidth = 128, targetHeight = 64,
     // 2. Convertir a escala de grises
     const canvasGris = convertirAEscalaGrises(canvasRedim);
     
-    // 3. Convertir a monocromático
-    const { bitmap, width, height } = convertirAMonocromatico(canvasGris, umbral);
+    // 3. Convertir a monocromático (dithering o umbral simple)
+    const { bitmap, width, height } = dithering
+      ? convertirAMonocromaticoDither(canvasGris, umbral)
+      : convertirAMonocromatico(canvasGris, umbral);
     
     // 4. Codificar en Base64
     const imagenData = codificarBase64(bitmap);
