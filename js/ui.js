@@ -124,6 +124,7 @@ export function obtenerElementos() {
     cargadorImagen: document.getElementById('cargadorImagen'),
     umbral: document.getElementById('umbral'),
     valorUmbral: document.getElementById('valorUmbral'),
+    dithering: document.getElementById('dithering'),
     avisoImagen: document.getElementById('avisoImagen'),
     
     // Botón enviar
