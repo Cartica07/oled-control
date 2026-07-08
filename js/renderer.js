@@ -68,7 +68,7 @@ function renderizarReducir(ctx, estado, colorFrente) {
   const metrics = fontMetrics[tamanoOptimo];
   
   const x = calcularX(estado.texto, tamanoOptimo, estado.alineacion, ANCHO);
-  const y = Math.max(0, Math.round((ALTO - metrics.height) / 2));
+  const y = Math.max(0, Math.round((ALTO - metrics.height) / 2) + AJUSTE_VERTICAL);
   
   dibujarTexto(ctx, estado.texto, tamanoOptimo, x, y, colorFrente);
 }
@@ -82,7 +82,7 @@ function renderizarRecortar(ctx, estado, colorFrente) {
   const metrics = fontMetrics[tamano];
   
   const x = calcularX(textoRecortado, tamano, estado.alineacion, ANCHO);
-  const y = Math.max(0, Math.round((ALTO - metrics.height) / 2));
+  const y = Math.max(0, Math.round((ALTO - metrics.height) / 2) + AJUSTE_VERTICAL);
   
   dibujarTexto(ctx, textoRecortado, tamano, x, y, colorFrente);
 }
@@ -95,7 +95,7 @@ function renderizarScroll(ctx, estado, colorFrente, scrollX) {
   const metrics = fontMetrics[tamano];
   
   const x = typeof scrollX === 'number' ? scrollX : ANCHO;
-  const y = Math.max(0, Math.round((ALTO - metrics.height) / 2));
+  const y = Math.max(0, Math.round((ALTO - metrics.height) / 2) + AJUSTE_VERTICAL);
   
   dibujarTexto(ctx, estado.texto, tamano, x, y, colorFrente);
 }
