@@ -33,17 +33,18 @@ export async function cargarEstado() {
       const datos = snap.val();
       const pantalla = datos.pantalla || {};
       const config = pantalla.config || {};
+      const imagen = pantalla.imagen || {};
 
       return {
-        tipo: config.tipo || 'texto',
+        tipo: pantalla.tipo || 'texto',
         texto: (typeof pantalla.texto === 'string') ? pantalla.texto : 'Hola Mundo',
         tamano: Number(config.tamano) || 2,
         alineacion: config.alineacion || 'centro',
         invertido: !!config.invertido,
         modoTexto: config.modoTexto || 'ajustar',
-        imagenData: config.imagenData || '',
-        imagenAncho: Number(config.imagenAncho) || 0,
-        imagenAlto: Number(config.imagenAlto) || 0,
+        imagenData: imagen.datos || '',
+        imagenAncho: Number(imagen.ancho) || 0,
+        imagenAlto: Number(imagen.alto) || 0,
         version: Number(datos.version) || 0,
         exito: true
       };
@@ -85,15 +86,17 @@ export async function enviarEstado(estado) {
       version: nuevaVersion,
       pantalla: {
         texto: estado.texto,
+        tipo: estado.tipo,
         config: {
-          tipo: estado.tipo,
           tamano: estado.tamano,
           alineacion: estado.alineacion,
           invertido: estado.invertido,
-          modoTexto: estado.modoTexto,
-          imagenData: estado.imagenData,
-          imagenAncho: estado.imagenAncho,
-          imagenAlto: estado.imagenAlto
+          modoTexto: estado.modoTexto
+        },
+        imagen: {
+          ancho: estado.imagenAncho,
+          alto: estado.imagenAlto,
+          datos: estado.imagenData
         }
       }
     });
