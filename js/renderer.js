@@ -24,6 +24,17 @@ const AMBAR = '#4dd2ff';
 const NEGRO = '#000000';
 
 /**
+ * Posición Y según alineación vertical, espejo de calcularY() en
+ * pantalla.cpp: "arriba" pega el contenido al borde superior;
+ * cualquier otro valor (incluido "centro" o vacío) centra, que es
+ * el comportamiento de siempre.
+ */
+function calcularY(alturaContenido, alineacionV) {
+  const y = (alineacionV === 'arriba') ? 0 : Math.round((ALTO - alturaContenido) / 2);
+  return Math.max(0, y);
+}
+
+/**
  * Dibuja la pantalla OLED completa basada en el estado actual
  */
 export function dibujarOLED(canvas, estado, scrollX = null) {
@@ -66,7 +77,7 @@ function renderizarAjustar(ctx, estado, colorFrente) {
   const metrics = fontMetrics[tamano];
 
   const alturaBloque = calcularAltoTexto(lineas, tamano);
-  const y = Math.max(0, Math.round((ALTO - alturaBloque) / 2));
+  const y = calcularY(alturaBloque, estado.alineacionV);
 
   dibujarLineas(ctx, lineas, tamano, estado.alineacion, y, colorFrente);
 }
@@ -77,7 +88,7 @@ function renderizarReducir(ctx, estado, colorFrente) {
   const metrics = fontMetrics[tamanoOptimo];
 
   const x = calcularX(estado.texto, tamanoOptimo, estado.alineacion, ANCHO);
-  const y = Math.max(0, Math.round((ALTO - metrics.height) / 2));
+  const y = calcularY(metrics.height, estado.alineacionV);
 
   dibujarTextoBitmap(ctx, estado.texto, tamanoOptimo, x, y, colorFrente);
 }
@@ -89,7 +100,7 @@ function renderizarRecortar(ctx, estado, colorFrente) {
   const metrics = fontMetrics[tamano];
 
   const x = calcularX(textoRecortado, tamano, estado.alineacion, ANCHO);
-  const y = Math.max(0, Math.round((ALTO - metrics.height) / 2));
+  const y = calcularY(metrics.height, estado.alineacionV);
 
   dibujarTextoBitmap(ctx, textoRecortado, tamano, x, y, colorFrente);
 }
@@ -100,7 +111,7 @@ function renderizarScroll(ctx, estado, colorFrente, scrollX) {
   const metrics = fontMetrics[tamano];
 
   const x = typeof scrollX === 'number' ? scrollX : ANCHO;
-  const y = Math.max(0, Math.round((ALTO - metrics.height) / 2));
+  const y = calcularY(metrics.height, estado.alineacionV);
 
   dibujarTextoBitmap(ctx, estado.texto, tamano, x, y, colorFrente);
 }
