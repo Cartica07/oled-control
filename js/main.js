@@ -26,6 +26,7 @@ let estadoActual = {
   texto: 'Hola Mundo',
   tamano: 2,
   alineacion: 'centro',
+  alineacionV: 'centro',
   invertido: false,
   modoTexto: 'ajustar',
   imagenData: '',
@@ -178,6 +179,15 @@ function configurarEventos() {
     renderizar();
   });
 
+  // Alineación vertical
+  elementos.grupoAlineacionV.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    estadoActual.alineacionV = btn.dataset.valor;
+    marcarSegmentoActivo(elementos.grupoAlineacionV, estadoActual.alineacionV);
+    renderizar();
+  });
+
   // Modo de texto
   elementos.grupoModo.addEventListener('change', (e) => {
     if (e.target.name !== 'modoTexto') return;
@@ -222,6 +232,7 @@ async function cargarEstadoInicial() {
           texto: resultado.texto,
           tamano: resultado.tamano,
           alineacion: resultado.alineacion,
+          alineacionV: resultado.alineacionV || 'centro',
           invertido: resultado.invertido,
           modoTexto: resultado.modoTexto,
           imagenData: resultado.imagenData || '',
