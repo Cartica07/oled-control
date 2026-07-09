@@ -24,6 +24,10 @@ export function poblarControles(estado, elementos) {
   if (elementos.grupoAlineacion) {
     marcarSegmentoActivo(elementos.grupoAlineacion, estado.alineacion);
   }
+
+  if (elementos.grupoAlineacionV) {
+    marcarSegmentoActivo(elementos.grupoAlineacionV, estado.alineacionV || 'centro');
+  }
   
   if (elementos.grupoModo) {
     elementos.grupoModo.querySelectorAll('input[name="modoTexto"]').forEach(r => {
@@ -117,6 +121,7 @@ export function obtenerElementos() {
     // Controles de formato
     grupoTamano: document.getElementById('grupoTamano'),
     grupoAlineacion: document.getElementById('grupoAlineacion'),
+    grupoAlineacionV: document.getElementById('grupoAlineacionV'),
     grupoModo: document.getElementById('grupoModo'),
     invertido: document.getElementById('invertido'),
     
