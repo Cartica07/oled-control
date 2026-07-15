@@ -34,6 +34,7 @@ export async function cargarEstado() {
       const pantalla = datos.pantalla || {};
       const config = pantalla.config || {};
       const imagen = pantalla.imagen || {};
+      const cancion = pantalla.cancion || {};
 
       return {
         tipo: pantalla.tipo || 'texto',
@@ -46,6 +47,10 @@ export async function cargarEstado() {
         imagenData: imagen.datos || '',
         imagenAncho: Number(imagen.ancho) || 0,
         imagenAlto: Number(imagen.alto) || 0,
+        cancionNombre: (typeof cancion.nombre === 'string') ? cancion.nombre : '',
+        cancionRepeticiones: Number(cancion.repeticiones) || 1,
+        // NOTA: no traemos las notas completas aquí porque pueden ser grandes;
+        // la web gestionará un catálogo independiente (oled_remota/canciones).
         version: Number(datos.version) || 0,
         exito: true
       };
@@ -62,6 +67,8 @@ export async function cargarEstado() {
         imagenData: '',
         imagenAncho: 0,
         imagenAlto: 0,
+        cancionNombre: '',
+        cancionRepeticiones: 1,
         version: 0,
         exito: true,
         vacio: true
@@ -77,6 +84,39 @@ export async function cargarEstado() {
 }
 
 /**
+ * Lista las canciones disponibles en el catálogo (oled_remota/canciones)
+ * Retorna un objeto { nombre: { notas: [...], meta: {...} }, ... }
+ */
+export async function listarCanciones() {
+  try {
+    const snap = await get(ref(db, 'oled_remota/canciones'));
+    if (!snap.exists()) return {};
+    return snap.val();
+  } catch (err) {
+    console.error('Error al listar canciones:', err);
+    return {};
+  }
+}
+
+/**
+ * Guarda una canción en el catálogo (oled_remota/canciones/<nombre>)
+ * notas: array de arrays [freq, durMs]
+ */
+export async function guardarCancionCatalogo(nombre, notas, meta = {}) {
+  try {
+    const safeKey = String(nombre).replace(/\./g, '_').replace(/\$/g, '_');
+    await set(ref(db, `oled_remota/canciones/${safeKey}`), {
+      notas: notas,
+      meta: meta
+    });
+    return { exito: true };
+  } catch (err) {
+    console.error('Error al guardar canción en catálogo:', err);
+    return { exito: false, error: err.message };
+  }
+}
+
+/**
  * Envía la configuración actualizada a Firebase
  */
 export async function enviarEstado(estado) {
@@ -84,25 +124,42 @@ export async function enviarEstado(estado) {
     const snapVersion = await get(ref(db, 'oled_remota/version'));
     const nuevaVersion = (snapVersion.exists() ? Number(snapVersion.val()) : 0) + 1;
 
-    await set(ref(db, 'oled_remota'), {
-      version: nuevaVersion,
-      pantalla: {
-        texto: estado.texto,
-        tipo: estado.tipo,
-        config: {
-          tamano: estado.tamano,
-          alineacion: estado.alineacion,
-          alineacionV: estado.alineacionV,
-          invertido: estado.invertido,
-          modoTexto: estado.modoTexto
-        },
-        imagen: {
-          ancho: estado.imagenAncho,
-          alto: estado.imagenAlto,
-          datos: estado.imagenData
-        }
-      }
-    });
+    const pantallaPayload = {};
+
+    if (estado.tipo === 'imagen') {
+      pantallaPayload.tipo = 'imagen';
+      pantallaPayload.imagen = {
+        ancho: estado.imagenAncho,
+        alto: estado.imagenAlto,
+        datos: estado.imagenData
+      };
+    } else if (estado.tipo === 'cancion') {
+      pantallaPayload.tipo = 'cancion';
+      pantallaPayload.cancion = {
+        nombre: estado.cancion || '',
+        repeticiones: Number(estado.cancionRepeticiones || 1),
+        notas: estado.cancionNotas || []
+      };
+    } else {
+      // Texto por defecto
+      pantallaPayload.tipo = 'texto';
+      pantallaPayload.texto = estado.texto;
+      pantallaPayload.config = {
+        tamano: estado.tamano,
+        alineacion: estado.alineacion,
+        alineacionV: estado.alineacionV,
+        invertido: estado.invertido,
+        modoTexto: estado.modoTexto
+      };
+
+      pantallaPayload.imagen = {
+        ancho: estado.imagenAncho,
+        alto: estado.imagenAlto,
+        datos: estado.imagenData
+      };
+    }
+
+    await set(ref(db, 'oled_remota'), Object.assign({ version: nuevaVersion }, { pantalla: pantallaPayload }));
 
     return {
       exito: true,
