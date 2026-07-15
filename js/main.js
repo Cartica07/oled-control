@@ -127,6 +127,17 @@ function iniciarScroll() {
 }
 
 function renderizar() {
+  // "Cancion" no dibuja nada propio: en el dispositivo real, mandar una
+  // canción NO toca la pantalla (ver pantalla.cpp -- mostrarPantalla()
+  // es un no-op para tipo="cancion"). Sigue mostrando lo que ya había:
+  // texto (con scroll incluido), imagen, apagada, o el reloj. Acá en el
+  // preview hacemos lo mismo: no tocamos el canvas, para que se vea
+  // consistente con lo que realmente pasa en la OLED física.
+  if (estadoActual.tipo === 'cancion') {
+    detenerScroll();
+    return;
+  }
+
   // Si es imagen, no animar
   if (estadoActual.tipo === 'imagen') {
     detenerScroll();
