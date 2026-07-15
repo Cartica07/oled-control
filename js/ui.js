@@ -113,6 +113,7 @@ export function obtenerElementos() {
     grupoTipo: document.getElementById('grupoTipo'),
     seccionTexto: document.getElementById('seccionTexto'),
     seccionImagen: document.getElementById('seccionImagen'),
+    seccionCancion: document.getElementById('seccionCancion'),
     
     // Texto y contador
     texto: document.getElementById('texto'),
@@ -131,6 +132,13 @@ export function obtenerElementos() {
     valorUmbral: document.getElementById('valorUmbral'),
     dithering: document.getElementById('dithering'),
     avisoImagen: document.getElementById('avisoImagen'),
+    
+    // Controles de canción
+    seleccionCancion: document.getElementById('seleccionCancion'),
+    inputRepeticiones: document.getElementById('inputRepeticiones'),
+    previewCancion: document.getElementById('previewCancion'),
+    cargadorCancion: document.getElementById('cargadorCancion'),
+    avisoCancion: document.getElementById('avisoCancion'),
     
     // Botón enviar
     botonEnviar: document.getElementById('enviar'),
