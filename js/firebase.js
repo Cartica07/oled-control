@@ -50,7 +50,7 @@ export async function cargarEstado() {
         cancionNombre: (typeof cancion.nombre === 'string') ? cancion.nombre : '',
         cancionRepeticiones: Number(cancion.repeticiones) || 1,
         // NOTA: no traemos las notas completas aquí porque pueden ser grandes;
-        // la web gestionará un catálogo independiente (oled_remota/canciones).
+        // la web gestionará un catálogo independiente en /canciones (ver más abajo).
         version: Number(datos.version) || 0,
         exito: true
       };
@@ -84,12 +84,24 @@ export async function cargarEstado() {
 }
 
 /**
- * Lista las canciones disponibles en el catálogo (oled_remota/canciones)
+ * Lista las canciones disponibles en el catálogo (/canciones)
+ *
+ * NOTA IMPORTANTE: este catálogo vive en una ruta HERMANA de
+ * "oled_remota", NO adentro. Dos motivos:
+ *   1) El ESP8266 pide "oled_remota.json" completo cada 10s
+ *      (TIEMPO_ACTUALIZACION) -- si el catálogo estuviera adentro,
+ *      el dispositivo se bajaría todas las canciones guardadas en
+ *      cada chequeo, aunque nunca las use.
+ *   2) enviarEstado() más abajo hace set(ref(db,'oled_remota'), ...),
+ *      que REEMPLAZA todo ese nodo. Si "canciones" fuera hijo de
+ *      "oled_remota", cada "Enviar" (de texto, imagen o canción)
+ *      borraría el catálogo entero. Al ser hermano, set() no lo toca.
+ *
  * Retorna un objeto { nombre: { notas: [...], meta: {...} }, ... }
  */
 export async function listarCanciones() {
   try {
-    const snap = await get(ref(db, 'oled_remota/canciones'));
+    const snap = await get(ref(db, 'canciones'));
     if (!snap.exists()) return {};
     return snap.val();
   } catch (err) {
@@ -99,13 +111,13 @@ export async function listarCanciones() {
 }
 
 /**
- * Guarda una canción en el catálogo (oled_remota/canciones/<nombre>)
+ * Guarda una canción en el catálogo (/canciones/<nombre>)
  * notas: array de arrays [freq, durMs]
  */
 export async function guardarCancionCatalogo(nombre, notas, meta = {}) {
   try {
     const safeKey = String(nombre).replace(/\./g, '_').replace(/\$/g, '_');
-    await set(ref(db, `oled_remota/canciones/${safeKey}`), {
+    await set(ref(db, `canciones/${safeKey}`), {
       notas: notas,
       meta: meta
     });
