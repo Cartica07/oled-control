@@ -4,7 +4,7 @@
  */
 
 import { dibujarOLED } from './renderer.js';
-import { cargarEstado, enviarEstado, listarCanciones, guardarCancionCatalogo } from './firebase.js';
+import { cargarEstado, enviarEstado, listarCanciones, guardarCancionCatalogo, suscribirLastSeen } from './firebase.js';
 import { procesarImagen } from './imageProcessor.js';
 import {
   obtenerElementos,
@@ -47,6 +47,48 @@ const ANCHO_OLED = 128;
 
 // Catálogo de canciones cargado desde Firebase
 let cancionesCatalogo = {};
+
+// ===================================================
+// Estado de conexión del DISPOSITIVO (heartbeat)
+// ===================================================
+// El ESP8266 escribe oled_remota/lastSeen en cada chequeo exitoso
+// (cada TIEMPO_ACTUALIZACION = 10s, ver github.cpp V1.11). Si pasó
+// mucho más que eso desde el último valor visto, asumimos que el
+// dispositivo está apagado o sin WiFi -- aunque Firebase en sí responda
+// perfecto. El umbral es más alto que el intervalo real para dar
+// margen (jitter de red, chequeo que se salteó una vez, etc.).
+const UMBRAL_DESCONEXION_MS = 25000;
+const INTERVALO_CHEQUEO_CONEXION_MS = 5000;
+
+let ultimoLastSeen = null; // ms desde época (heartbeat), o null si nunca llegó nada
+
+function evaluarConexionDispositivo() {
+  if (ultimoLastSeen === null) {
+    marcarConexion('sin señal del dispositivo', 'error', elementos);
+    return;
+  }
+
+  const antiguedad = Date.now() - ultimoLastSeen;
+
+  if (antiguedad <= UMBRAL_DESCONEXION_MS) {
+    marcarConexion('conectado', 'ok', elementos);
+  } else {
+    marcarConexion('desconectado', 'error', elementos);
+  }
+}
+
+function iniciarMonitoreoConexion() {
+  suscribirLastSeen((valor) => {
+    ultimoLastSeen = valor;
+    evaluarConexionDispositivo();
+  });
+
+  // lastSeen solo cambia cuando el ESP8266 escribe -- si se apaga,
+  // Firebase no dispara ningún evento nuevo (no hay nada que cambiar).
+  // Este timer aparte es el que nota que "ya pasó demasiado tiempo"
+  // aunque no haya llegado ningún dato nuevo.
+  setInterval(evaluarConexionDispositivo, INTERVALO_CHEQUEO_CONEXION_MS);
+}
 
 // Preview audio
 let audioCtx = null;
@@ -443,10 +485,12 @@ async function cargarEstadoInicial() {
       poblarControles(estadoActual, elementos);
       mostrarSeccionSegunTipo(estadoActual.tipo);
       renderizar();
-      marcarConexion('conectado', 'ok', elementos);
+      // El LED de conexión ya no se marca acá: refleja el heartbeat del
+      // dispositivo (ver iniciarMonitoreoConexion), no si el navegador
+      // pudo leer Firebase, que es una cosa completamente distinta.
       marcarEstado(
         resultado.vacio
-          ? 'Conectado. Todavía no hay datos.'
+          ? 'Conectado a Firebase. Todavía no hay datos.'
           : `En la OLED ahora mismo: v${resultado.version}`,
         'ok',
         elementos
@@ -454,14 +498,14 @@ async function cargarEstadoInicial() {
     } else {
       poblarControles(estadoActual, elementos);
       renderizar();
-      marcarConexion('sin conexión', 'error', elementos);
+      marcarConexion('sin Firebase', 'error', elementos);
       marcarEstado('No se pudo leer Firebase.', 'error', elementos);
     }
   } catch (err) {
     console.error('Error durante carga inicial:', err);
     poblarControles(estadoActual, elementos);
     renderizar();
-    marcarConexion('sin conexión', 'error', elementos);
+    marcarConexion('sin Firebase', 'error', elementos);
     marcarEstado('Error de conexión a Firebase.', 'error', elementos);
   }
 }
@@ -516,7 +560,8 @@ async function inicializar() {
   marcarConexion('conectando…', null, elementos);
   
   configurarEventos();
-  
+  iniciarMonitoreoConexion();
+
   await cargarEstadoInicial();
 }
 
