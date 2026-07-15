@@ -1,3 +1,5 @@
+index
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -44,6 +46,7 @@
       <div class="segmento" id="grupoTipo">
         <button type="button" data-valor="texto" class="activo">Texto</button>
         <button type="button" data-valor="imagen">Imagen</button>
+        <button type="button" data-valor="cancion">Canción</button>
       </div>
     </div>
 
@@ -151,6 +154,34 @@
       </div>
 
       <div id="avisoImagen" class="aviso" style="display: none;"></div>
+
+    </div>
+
+    <!-- Sección de CANCIÓN (oculta inicialmente) -->
+    <div id="seccionCancion" style="display: none;">
+
+      <div class="campo">
+        <label class="rotulo" for="seleccionCancion">Canción</label>
+        <select id="seleccionCancion"></select>
+        <p class="descripcion-campo">Seleccioná una canción precargada o subila en formato JSON (array de [frecuencia, durMs]).</p>
+      </div>
+
+      <div class="fila-doble">
+        <div class="campo">
+          <label class="rotulo" for="inputRepeticiones">Repeticiones</label>
+          <input type="number" id="inputRepeticiones" min="1" value="1" />
+        </div>
+
+        <div class="campo">
+          <label class="rotulo">Acciones</label>
+          <div style="display:flex; gap:8px;">
+            <button id="previewCancion" type="button">Previsualizar</button>
+            <input type="file" id="cargadorCancion" accept="application/json" />
+          </div>
+        </div>
+      </div>
+
+      <div id="avisoCancion" class="aviso" style="display:none;"></div>
 
     </div>
 
