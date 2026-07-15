@@ -4,7 +4,7 @@
  */
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js';
-import { getDatabase, ref, get, set } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
+import { getDatabase, ref, get, set, onValue } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
 
 // Configuración de Firebase
 const firebaseConfig = {
@@ -81,6 +81,32 @@ export async function cargarEstado() {
       error: err.message
     };
   }
+}
+
+/**
+ * Se suscribe a oled_remota/lastSeen (heartbeat que escribe el ESP8266
+ * en cada chequeo exitoso, ver github.cpp V1.11).
+ *
+ * A diferencia de cargarEstado(), esto NO es un get() de una sola vez:
+ * usa onValue(), que deja una escucha en tiempo real. Así, si el
+ * dispositivo se reconecta y vuelve a escribir, la web se entera al
+ * toque sin tener que hacer polling manual del valor en sí (el polling
+ * que sí hace falta es para notar cuando el valor se puso VIEJO, y de
+ * eso se encarga quien llama a esta función, no Firebase).
+ *
+ * callback recibe el timestamp (número, ms desde época) o null si el
+ * dispositivo nunca escribió nada todavía (firmware viejo sin V1.11,
+ * o recién configurado y todavía no hizo el primer chequeo).
+ *
+ * Devuelve la función para cancelar la suscripción (unsubscribe).
+ */
+export function suscribirLastSeen(callback) {
+  return onValue(ref(db, 'oled_remota/lastSeen'), (snap) => {
+    callback(snap.exists() ? Number(snap.val()) : null);
+  }, (err) => {
+    console.error('Error al suscribirse a lastSeen:', err);
+    callback(null);
+  });
 }
 
 /**
