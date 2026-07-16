@@ -4,7 +4,7 @@
  */
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js';
-import { getDatabase, ref, get, set, onValue } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
+import { getDatabase, ref, get, set, remove, onValue } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
 
 // Configuración de Firebase
 const firebaseConfig = {
@@ -150,6 +150,60 @@ export async function guardarCancionCatalogo(nombre, notas, meta = {}) {
     return { exito: true };
   } catch (err) {
     console.error('Error al guardar canción en catálogo:', err);
+    return { exito: false, error: err.message };
+  }
+}
+
+/**
+ * Lista las imágenes disponibles en el catálogo (/imagenes)
+ *
+ * Mismo criterio que listarCanciones(): vive en una ruta HERMANA de
+ * "oled_remota", no adentro, por las mismas dos razones (el ESP8266
+ * no debería bajarse el catálogo entero en cada chequeo, y enviarEstado()
+ * no debe borrarlo al hacer set() sobre "oled_remota").
+ *
+ * Retorna un objeto { nombre: { datos, ancho, alto, meta: {...} }, ... }
+ */
+export async function listarImagenes() {
+  try {
+    const snap = await get(ref(db, 'imagenes'));
+    if (!snap.exists()) return {};
+    return snap.val();
+  } catch (err) {
+    console.error('Error al listar imágenes:', err);
+    return {};
+  }
+}
+
+/**
+ * Guarda una imagen procesada en el catálogo (/imagenes/<nombre>)
+ * datos: string Base64 del bitmap 1bpp (mismo formato que imagenData)
+ */
+export async function guardarImagenCatalogo(nombre, datos, ancho, alto, meta = {}) {
+  try {
+    const safeKey = String(nombre).replace(/\./g, '_').replace(/\$/g, '_').replace(/[#\[\]/]/g, '_');
+    await set(ref(db, `imagenes/${safeKey}`), {
+      datos: datos,
+      ancho: ancho,
+      alto: alto,
+      meta: meta
+    });
+    return { exito: true, key: safeKey };
+  } catch (err) {
+    console.error('Error al guardar imagen en catálogo:', err);
+    return { exito: false, error: err.message };
+  }
+}
+
+/**
+ * Borra una imagen del catálogo (/imagenes/<nombre>)
+ */
+export async function borrarImagenCatalogo(nombre) {
+  try {
+    await remove(ref(db, `imagenes/${nombre}`));
+    return { exito: true };
+  } catch (err) {
+    console.error('Error al borrar imagen del catálogo:', err);
     return { exito: false, error: err.message };
   }
 }
