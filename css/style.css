@@ -279,6 +279,16 @@ button:focus-visible,
   outline-offset: 2px;
 }
 
+input[type="range"]:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+.switch input:disabled + .via {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
 .descripcion-campo {
   font-size: 12px;
   color: #8a8070;
