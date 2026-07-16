@@ -4,8 +4,17 @@
  */
 
 import { dibujarOLED } from './renderer.js';
-import { cargarEstado, enviarEstado, listarCanciones, guardarCancionCatalogo, suscribirLastSeen } from './firebase.js';
-import { procesarImagen } from './imageProcessor.js';
+import {
+  cargarEstado,
+  enviarEstado,
+  listarCanciones,
+  guardarCancionCatalogo,
+  suscribirLastSeen,
+  listarImagenes,
+  guardarImagenCatalogo,
+  borrarImagenCatalogo
+} from './firebase.js';
+import { procesarImagen, dibujarPreviewImagen } from './imageProcessor.js';
 import {
   obtenerElementos,
   poblarControles,
@@ -47,6 +56,9 @@ const ANCHO_OLED = 128;
 
 // Catálogo de canciones cargado desde Firebase
 let cancionesCatalogo = {};
+
+// Catálogo de imágenes guardadas cargado desde Firebase (/imagenes)
+let imagenesCatalogo = {};
 
 // ===================================================
 // Estado de conexión del DISPOSITIVO (heartbeat)
@@ -201,10 +213,160 @@ async function procesarYMostrarImagen() {
 
     renderizar();
     marcarEstado(`Imagen procesada: ${resultado.imagenAncho}×${resultado.imagenAlto}px`, 'ok', elementos);
+
+    // Sugerir un nombre para el catálogo basado en el archivo, pero SIN
+    // guardar nada todavía -- eso solo pasa si el usuario toca el botón
+    // "Añadir imagen al catálogo" a propósito.
+    if (elementos.nombreGaleria && !elementos.nombreGaleria.value) {
+      elementos.nombreGaleria.value = file.name.replace(/\.[^.]+$/, '');
+    }
   } catch (error) {
     console.error('Error procesando imagen:', error);
     marcarEstado(`Error: ${error.message}`, 'error', elementos);
   }
+}
+
+// Guarda en el catálogo (/imagenes) la imagen que está actualmente
+// procesada y visible en el preview. Acción explícita del usuario,
+// separada de "subir imagen para el dispositivo": no todo lo que se
+// sube queda guardado, solo lo que se decide agregar acá.
+async function manejarGuardarEnGaleria() {
+  if (estadoActual.tipo !== 'imagen' || !estadoActual.imagenData) {
+    setAvisoGaleria('Primero subí y procesá una imagen para poder guardarla.', 'error');
+    return;
+  }
+
+  const nombre = (elementos.nombreGaleria && elementos.nombreGaleria.value.trim()) || '';
+  if (!nombre) {
+    setAvisoGaleria('Poné un nombre para guardar la imagen en el catálogo.', 'error');
+    return;
+  }
+
+  setAvisoGaleria('Guardando…');
+  const resultado = await guardarImagenCatalogo(
+    nombre,
+    estadoActual.imagenData,
+    estadoActual.imagenAncho,
+    estadoActual.imagenAlto,
+    { origen: 'upload', fecha: Date.now() }
+  );
+
+  if (resultado.exito) {
+    await poblarCatalogoImagenes();
+    setAvisoGaleria(`Guardada en el catálogo como "${resultado.key}"`);
+  } else {
+    setAvisoGaleria('No se pudo guardar: ' + (resultado.error || ''), 'error');
+  }
+}
+
+function setAvisoGaleria(text, tipo = null) {
+  if (!elementos.avisoGaleria) return;
+  elementos.avisoGaleria.style.display = text ? 'block' : 'none';
+  elementos.avisoGaleria.textContent = text || '';
+  if (tipo === 'error') elementos.avisoGaleria.classList.add('error');
+  else elementos.avisoGaleria.classList.remove('error');
+}
+
+// ===================================================
+// Galería de imágenes guardadas: catálogo, selección, borrado
+// ===================================================
+async function poblarCatalogoImagenes() {
+  try {
+    imagenesCatalogo = await listarImagenes() || {};
+    if (elementos.panelGaleria && elementos.panelGaleria.style.display !== 'none') {
+      renderizarGaleria();
+    }
+  } catch (err) {
+    console.error('Error cargando catálogo de imágenes:', err);
+  }
+}
+
+function renderizarGaleria() {
+  const grid = elementos.gridGaleria;
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  const claves = Object.keys(imagenesCatalogo);
+
+  if (claves.length === 0) {
+    const vacio = document.createElement('p');
+    vacio.className = 'galeria-vacio';
+    vacio.textContent = 'Todavía no hay imágenes guardadas.';
+    grid.appendChild(vacio);
+    return;
+  }
+
+  claves.forEach((key) => {
+    const entry = imagenesCatalogo[key];
+    if (!entry || !entry.datos) return;
+
+    const item = document.createElement('div');
+    item.className = 'item-galeria';
+    if (estadoActual.tipo === 'imagen' && estadoActual.imagenData === entry.datos) {
+      item.classList.add('activo');
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = entry.ancho || 128;
+    canvas.height = entry.alto || 64;
+
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    try {
+      dibujarPreviewImagen(canvas, entry.datos, entry.ancho || 128, entry.alto || 64, '#4dd2ff');
+    } catch (e) {
+      console.error('Error dibujando miniatura de galería:', e);
+    }
+
+    const nombre = document.createElement('span');
+    nombre.className = 'item-galeria-nombre';
+    nombre.textContent = key;
+
+    const borrar = document.createElement('button');
+    borrar.type = 'button';
+    borrar.className = 'item-galeria-borrar';
+    borrar.textContent = 'Borrar';
+    borrar.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      const resultado = await borrarImagenCatalogo(key);
+      if (resultado.exito) {
+        await poblarCatalogoImagenes();
+        renderizarGaleria();
+      } else {
+        marcarEstado('No se pudo borrar la imagen: ' + (resultado.error || ''), 'error', elementos);
+      }
+    });
+
+    item.addEventListener('click', () => {
+      estadoActual.tipo = 'imagen';
+      estadoActual.imagenData = entry.datos;
+      estadoActual.imagenAncho = entry.ancho || 128;
+      estadoActual.imagenAlto = entry.alto || 64;
+      mostrarSeccionSegunTipo('imagen');
+      marcarSegmentoActivo(elementos.grupoTipo, 'imagen');
+      renderizar();
+      cerrarPanelGaleria();
+      marcarEstado(`Imagen "${key}" cargada desde la galería`, 'ok', elementos);
+    });
+
+    item.appendChild(canvas);
+    item.appendChild(nombre);
+    item.appendChild(borrar);
+    grid.appendChild(item);
+  });
+}
+
+function abrirPanelGaleria() {
+  if (!elementos.panelGaleria) return;
+  elementos.panelGaleria.style.display = 'block';
+  renderizarGaleria();
+  poblarCatalogoImagenes(); // refresca por si se subió algo desde otra pestaña
+}
+
+function cerrarPanelGaleria() {
+  if (!elementos.panelGaleria) return;
+  elementos.panelGaleria.style.display = 'none';
 }
 
 // ===================================================
@@ -425,8 +587,9 @@ function configurarEventos() {
     renderizar();
   });
 
-  // Cargador de imagen
-  elementos.cargadorImagen.addEventListener('change', procesarYMostrarImagen);
+  // Cargador de imagen: solo procesa y muestra el preview. Guardar en
+  // el catálogo es una acción aparte (botón "Añadir imagen al catálogo").
+  elementos.cargadorImagen.addEventListener('change', () => procesarYMostrarImagen());
 
   // Umbral de binarización
   elementos.umbral.addEventListener('input', (e) => {
@@ -442,6 +605,26 @@ function configurarEventos() {
       procesarYMostrarImagen();
     }
   });
+
+  // Guardar la imagen actualmente procesada en el catálogo (galería)
+  if (elementos.botonGuardarGaleria) {
+    elementos.botonGuardarGaleria.addEventListener('click', manejarGuardarEnGaleria);
+  }
+
+  // Galería de imágenes guardadas
+  if (elementos.botonGaleria) {
+    elementos.botonGaleria.addEventListener('click', () => {
+      const abierta = elementos.panelGaleria && elementos.panelGaleria.style.display !== 'none';
+      if (abierta) {
+        cerrarPanelGaleria();
+      } else {
+        abrirPanelGaleria();
+      }
+    });
+  }
+  if (elementos.cerrarGaleria) {
+    elementos.cerrarGaleria.addEventListener('click', cerrarPanelGaleria);
+  }
 
   // Enviar
   elementos.botonEnviar.addEventListener('click', enviarAFirebase);
@@ -491,8 +674,9 @@ async function cargarEstadoInicial() {
         };
       }
 
-      // poblar catálogo de canciones y controles
+      // poblar catálogo de canciones, catálogo de imágenes, y controles
       await poblarCatalogoCanciones();
+      await poblarCatalogoImagenes();
       poblarControles(estadoActual, elementos);
       mostrarSeccionSegunTipo(estadoActual.tipo);
       renderizar();
