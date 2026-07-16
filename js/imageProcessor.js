@@ -4,6 +4,90 @@
  */
 
 /**
+ * Carga y redimensiona una imagen (desde cualquier src válido para
+ * HTMLImageElement: dataURL, blob URL, etc.) manteniendo la relación de
+ * aspecto sin distorsión. Agrega marcos negros si es necesario.
+ * Es el helper común detrás de cargarYRedimensionarImagen (que parte de
+ * un File) y cargarYRedimensionarDesdeDataURL (que parte de un dataURL
+ * ya en memoria, por ejemplo el guardado en el catálogo).
+ */
+function cargarYRedimensionarDesdeSrc(src, targetWidth, targetHeight) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+
+    img.onload = () => {
+      // Calcular escala manteniendo aspecto
+      const ratioImagen = img.width / img.height;
+      const ratioDestino = targetWidth / targetHeight;
+
+      let newWidth, newHeight;
+
+      if (ratioImagen > ratioDestino) {
+        // Imagen más ancha: ajustar por ancho
+        newWidth = targetWidth;
+        newHeight = Math.round(targetWidth / ratioImagen);
+      } else {
+        // Imagen más alta: ajustar por alto
+        newHeight = targetHeight;
+        newWidth = Math.round(targetHeight * ratioImagen);
+      }
+
+      // Calcular posición para centrar
+      const offsetX = Math.round((targetWidth - newWidth) / 2);
+      const offsetY = Math.round((targetHeight - newHeight) / 2);
+
+      // Crear canvas con fondo negro
+      const canvas = document.createElement('canvas');
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+      // Suavizado de alta calidad al achicar la imagen: reduce el
+      // aliasing/ruido que deja un downscale sin suavizar, lo que
+      // ayuda tanto al umbral simple como al dithering posteriores.
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+
+      // Fondo negro
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+      // Dibujar imagen redimensionada y centrada
+      ctx.drawImage(img, offsetX, offsetY, newWidth, newHeight);
+
+      resolve({
+        canvas: canvas,
+        width: targetWidth,
+        height: targetHeight,
+        offsetX: offsetX,
+        offsetY: offsetY,
+        scaleWidth: newWidth,
+        scaleHeight: newHeight
+      });
+    };
+
+    img.onerror = () => {
+      reject(new Error('Error al cargar la imagen'));
+    };
+
+    img.src = src;
+  });
+}
+
+/**
+ * Lee un File como dataURL (Promise wrapper de FileReader).
+ */
+function leerArchivoComoDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('Error al leer el archivo'));
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
  * Carga y redimensiona una imagen manteniendo la relación de aspecto
  * sin distorsión. Agrega marcos negros si es necesario.
  * 
@@ -13,77 +97,22 @@
  * @returns {Promise<{canvas: HTMLCanvasElement, width: number, height: number}>}
  */
 export async function cargarYRedimensionarImagen(file, targetWidth, targetHeight) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    
-    reader.onload = (e) => {
-      const img = new Image();
-      
-      img.onload = () => {
-        // Calcular escala manteniendo aspecto
-        const ratioImagen = img.width / img.height;
-        const ratioDestino = targetWidth / targetHeight;
-        
-        let newWidth, newHeight;
-        
-        if (ratioImagen > ratioDestino) {
-          // Imagen más ancha: ajustar por ancho
-          newWidth = targetWidth;
-          newHeight = Math.round(targetWidth / ratioImagen);
-        } else {
-          // Imagen más alta: ajustar por alto
-          newHeight = targetHeight;
-          newWidth = Math.round(targetHeight * ratioImagen);
-        }
-        
-        // Calcular posición para centrar
-        const offsetX = Math.round((targetWidth - newWidth) / 2);
-        const offsetY = Math.round((targetHeight - newHeight) / 2);
-        
-        // Crear canvas con fondo negro
-        const canvas = document.createElement('canvas');
-        canvas.width = targetWidth;
-        canvas.height = targetHeight;
-        
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const dataUrl = await leerArchivoComoDataURL(file);
+  return cargarYRedimensionarDesdeSrc(dataUrl, targetWidth, targetHeight);
+}
 
-        // Suavizado de alta calidad al achicar la imagen: reduce el
-        // aliasing/ruido que deja un downscale sin suavizar, lo que
-        // ayuda tanto al umbral simple como al dithering posteriores.
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-
-        // Fondo negro
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, targetWidth, targetHeight);
-        
-        // Dibujar imagen redimensionada y centrada
-        ctx.drawImage(img, offsetX, offsetY, newWidth, newHeight);
-        
-        resolve({
-          canvas: canvas,
-          width: targetWidth,
-          height: targetHeight,
-          offsetX: offsetX,
-          offsetY: offsetY,
-          scaleWidth: newWidth,
-          scaleHeight: newHeight
-        });
-      };
-      
-      img.onerror = () => {
-        reject(new Error('Error al cargar la imagen'));
-      };
-      
-      img.src = e.target.result;
-    };
-    
-    reader.onerror = () => {
-      reject(new Error('Error al leer el archivo'));
-    };
-    
-    reader.readAsDataURL(file);
-  });
+/**
+ * Igual que cargarYRedimensionarImagen, pero partiendo de un dataURL que
+ * ya está en memoria (por ejemplo, la versión "preprocesada" guardada en
+ * el catálogo de Firebase) en vez de un File del disco.
+ *
+ * @param {string} dataUrl
+ * @param {number} targetWidth
+ * @param {number} targetHeight
+ * @returns {Promise<{canvas: HTMLCanvasElement, width: number, height: number}>}
+ */
+export async function cargarYRedimensionarDesdeDataURL(dataUrl, targetWidth, targetHeight) {
+  return cargarYRedimensionarDesdeSrc(dataUrl, targetWidth, targetHeight);
 }
 
 /**
@@ -243,25 +272,35 @@ function convertirAMonocromaticoDither(canvas, umbral = 127) {
 }
 
 /**
- * Procesa una imagen: redimensiona, convierte a monocromático y codifica en Base64
- * 
- * @param {File} file - Archivo de imagen cargado
+ * Procesa una imagen ya en memoria (dataURL): redimensiona, convierte a
+ * monocromático y codifica en Base64. Es el núcleo que usan tanto
+ * procesarImagen (arranca de un File) como la re-edición de imágenes
+ * del catálogo (arranca del dataURL "preprocesada" ya guardado).
+ *
+ * @param {string} dataUrl - Imagen de origen como dataURL
  * @param {number} targetWidth - Ancho destino (128)
  * @param {number} targetHeight - Alto destino (64)
  * @param {number} umbral - Umbral de binarización (0-255)
- * @param {boolean} dithering - true = Floyd-Steinberg (mejor para fotos/degradados),
- *                              false = umbral simple (mejor para logos/texto)
- * @returns {Promise<{imagenData: string, imagenAncho: number, imagenAlto: number, canvas: HTMLCanvasElement}>}
+ * @param {boolean} dithering - true = Floyd-Steinberg, false = umbral simple
+ * @returns {Promise<{imagenData: string, imagenAncho: number, imagenAlto: number, canvas: HTMLCanvasElement, preprocesada: string}>}
  */
-export async function procesarImagen(file, targetWidth = 128, targetHeight = 64, umbral = 127, dithering = true) {
+export async function procesarImagenDesdeDataURL(dataUrl, targetWidth = 128, targetHeight = 64, umbral = 127, dithering = true) {
   try {
     // 1. Cargar y redimensionar
-    const { canvas: canvasRedim } = await cargarYRedimensionarImagen(
-      file,
+    const { canvas: canvasRedim } = await cargarYRedimensionarDesdeDataURL(
+      dataUrl,
       targetWidth,
       targetHeight
     );
-    
+
+    // Guardamos el dataURL de la imagen YA redimensionada/centrada pero
+    // TODAVÍA a color y sin binarizar -- es el punto de partida liviano
+    // (128×64, unos pocos KB) que permite volver a probar otro umbral u
+    // otro modo de dithering más adelante sin tener que volver a subir
+    // el archivo original. Hay que sacarlo ANTES de convertirAEscalaGrises,
+    // que muta el canvas en el lugar.
+    const preprocesada = canvasRedim.toDataURL('image/png');
+
     // 2. Convertir a escala de grises
     const canvasGris = convertirAEscalaGrises(canvasRedim);
     
@@ -277,12 +316,29 @@ export async function procesarImagen(file, targetWidth = 128, targetHeight = 64,
       imagenData,
       imagenAncho: width,
       imagenAlto: height,
-      canvas: canvasRedim // Devolver el canvas redimensionado para preview
+      canvas: canvasRedim, // Devolver el canvas redimensionado para preview
+      preprocesada
     };
   } catch (error) {
     console.error('Error al procesar imagen:', error);
     throw error;
   }
+}
+
+/**
+ * Procesa una imagen: redimensiona, convierte a monocromático y codifica en Base64
+ * 
+ * @param {File} file - Archivo de imagen cargado
+ * @param {number} targetWidth - Ancho destino (128)
+ * @param {number} targetHeight - Alto destino (64)
+ * @param {number} umbral - Umbral de binarización (0-255)
+ * @param {boolean} dithering - true = Floyd-Steinberg (mejor para fotos/degradados),
+ *                              false = umbral simple (mejor para logos/texto)
+ * @returns {Promise<{imagenData: string, imagenAncho: number, imagenAlto: number, canvas: HTMLCanvasElement, preprocesada: string}>}
+ */
+export async function procesarImagen(file, targetWidth = 128, targetHeight = 64, umbral = 127, dithering = true) {
+  const dataUrl = await leerArchivoComoDataURL(file);
+  return procesarImagenDesdeDataURL(dataUrl, targetWidth, targetHeight, umbral, dithering);
 }
 
 /**
