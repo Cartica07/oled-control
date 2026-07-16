@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -152,6 +153,37 @@
       </div>
 
       <div id="avisoImagen" class="aviso" style="display: none;"></div>
+
+      <!-- Guardar en catálogo: acción APARTE de subir la imagen para el
+           dispositivo. Solo se guarda lo que el usuario decide agregar acá,
+           no todo lo que se sube y envía a la OLED. -->
+      <div class="campo">
+        <label class="rotulo" for="nombreGaleria">Añadir esta imagen al catálogo</label>
+        <div class="fila-guardar-galeria">
+          <input type="text" id="nombreGaleria" placeholder="Nombre para guardarla" maxlength="60" />
+          <button type="button" id="botonGuardarGaleria" class="boton-secundario">Añadir imagen al catálogo</button>
+        </div>
+        <p class="descripcion-campo">Guarda una copia de la imagen procesada de arriba para poder reutilizarla después, sin volver a subirla. No se guarda nada automáticamente.</p>
+        <div id="avisoGaleria" class="aviso" style="display: none;"></div>
+      </div>
+
+      <div class="campo">
+        <div class="galeria-cabecera-campo">
+          <span class="rotulo" style="margin:0;">Catálogo guardado</span>
+          <button type="button" id="botonGaleria" class="boton-secundario">Ver imágenes guardadas</button>
+        </div>
+        <p class="descripcion-campo">Elegí una imagen ya guardada para reusarla sin tener que volver a subir el archivo.</p>
+      </div>
+
+      <div id="panelGaleria" class="panel-galeria" style="display: none;">
+        <div class="galeria-cabecera">
+          <span class="rotulo" style="margin:0;">Elegí una imagen</span>
+          <button type="button" id="cerrarGaleria" class="boton-cerrar" aria-label="Cerrar galería">✕</button>
+        </div>
+        <div id="gridGaleria" class="grid-galeria">
+          <p class="galeria-vacio" id="galeriaVacio">Todavía no hay imágenes guardadas.</p>
+        </div>
+      </div>
 
     </div>
 
