@@ -178,16 +178,24 @@ export async function listarImagenes() {
 /**
  * Guarda una imagen procesada en el catálogo (/imagenes/<nombre>)
  * datos: string Base64 del bitmap 1bpp (mismo formato que imagenData)
+ * preprocesada: dataURL PNG de la versión 128×64 ya redimensionada pero
+ *   SIN binarizar (ver imageProcessor.js). Guardarla es lo que permite
+ *   después volver a cambiar el umbral o el dithering de una imagen que
+ *   ya está en el catálogo, sin tener que volver a subir el archivo
+ *   original. Es opcional: si no se manda, la imagen queda "fija"
+ *   (comportamiento de versiones anteriores del catálogo).
  */
-export async function guardarImagenCatalogo(nombre, datos, ancho, alto, meta = {}) {
+export async function guardarImagenCatalogo(nombre, datos, ancho, alto, preprocesada = null, meta = {}) {
   try {
     const safeKey = String(nombre).replace(/\./g, '_').replace(/\$/g, '_').replace(/[#\[\]/]/g, '_');
-    await set(ref(db, `imagenes/${safeKey}`), {
+    const payload = {
       datos: datos,
       ancho: ancho,
       alto: alto,
       meta: meta
-    });
+    };
+    if (preprocesada) payload.preprocesada = preprocesada;
+    await set(ref(db, `imagenes/${safeKey}`), payload);
     return { exito: true, key: safeKey };
   } catch (err) {
     console.error('Error al guardar imagen en catálogo:', err);
