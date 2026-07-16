@@ -63,17 +63,74 @@
     ul#listaResultados li.error { border-color: var(--led-error); color: #e08a7a; }
     footer { text-align: center; margin-top: 22px; font-family: var(--fuente-data); font-size: 10px; color: #4d473a; }
     footer a { color: var(--ambar-suave); }
+
+    .campo { margin-top: 18px; }
+    .switch-fila { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .switch { position: relative; display: inline-block; width: 42px; height: 24px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .switch .via {
+      position: absolute; inset: 0; background: #4a4030; border-radius: 999px;
+      transition: background .15s ease; cursor: pointer;
+    }
+    .switch .via .perilla {
+      position: absolute; top: 2px; left: 2px; width: 20px; height: 20px;
+      border-radius: 50%; background: #cfc4ac; transition: transform .15s ease, background .15s ease;
+    }
+    .switch input:checked + .via { background: var(--ambar-tenue); }
+    .switch input:checked + .via .perilla { transform: translateX(18px); background: #a6ecff; }
+    .control-rango { display: flex; align-items: center; gap: 12px; }
+    .control-rango input[type="range"] {
+      flex: 1; accent-color: var(--ambar); height: 6px; border-radius: 3px;
+      background: #0a0805; border: 1px solid var(--metal-borde);
+    }
+    .valor-rango {
+      font-family: var(--fuente-data); font-size: 13px; color: var(--ambar-suave);
+      min-width: 34px; text-align: right;
+    }
+    .previsualizacion {
+      display: flex; justify-content: center; margin-top: 18px;
+      background: #000; border: 1px solid var(--metal-borde); border-radius: 8px; padding: 10px;
+    }
+    .previsualizacion canvas {
+      width: 100%; max-width: 320px; height: auto; image-rendering: pixelated;
+    }
+    .previsualizacion-vacia {
+      font-family: var(--fuente-data); font-size: 11px; color: #635a4b;
+      display: flex; align-items: center; justify-content: center; width: 100%; min-height: 60px;
+    }
   </style>
 </head>
 <body>
   <div class="hoja">
     <h1>Carga masiva al catálogo</h1>
-    <p class="subtitulo">Elegí varias imágenes de una sola vez. Cada una se procesa igual que en el panel principal (128×64, umbral 127, dithering desactivado) y se guarda en el catálogo con el nombre del archivo. Esta página es una herramienta aparte: no envía nada a la OLED.</p>
+    <p class="subtitulo">Elegí varias imágenes de una sola vez. Se procesan a 128×64 con el umbral y el dithering que elijas más abajo (por defecto igual que el panel principal: umbral 127, dithering desactivado) y se guardan en el catálogo con el nombre del archivo. Esta página es una herramienta aparte: no envía nada a la OLED.</p>
 
     <div class="panel">
       <label class="rotulo" for="archivos">Imágenes a guardar</label>
       <input type="file" id="archivos" accept="image/*" multiple />
       <p class="descripcion">Podés seleccionar las 21 caras juntas (Ctrl/Cmd+clic o arrastrando la selección en el explorador de archivos).</p>
+
+      <div class="previsualizacion" id="previsualizacion">
+        <span class="previsualizacion-vacia">Elegí archivos para ver una vista previa acá</span>
+      </div>
+
+      <div class="campo switch-fila">
+        <span class="rotulo" style="margin:0;">Difuminado (dithering)</span>
+        <label class="switch">
+          <input type="checkbox" id="ditheringMasivo" />
+          <span class="via"><span class="perilla"></span></span>
+        </label>
+      </div>
+      <p class="descripcion">Activado: mejor para fotos y degradados. Desactivado: umbral duro, mejor para logos e íconos ya de alto contraste.</p>
+
+      <div class="campo">
+        <label class="rotulo" for="umbralMasivo">Umbral de binarización</label>
+        <div class="control-rango">
+          <input type="range" id="umbralMasivo" min="0" max="255" value="127" />
+          <span class="valor-rango" id="valorUmbralMasivo">127</span>
+        </div>
+        <p class="descripcion">Se aplica igual a todas las imágenes que subas en esta tanda. La vista previa de arriba usa la primera imagen seleccionada como referencia.</p>
+      </div>
 
       <button type="button" id="botonSubir">Subir todas al catálogo</button>
 
@@ -90,9 +147,57 @@
     const inputArchivos = document.getElementById('archivos');
     const boton = document.getElementById('botonSubir');
     const lista = document.getElementById('listaResultados');
+    const ditheringMasivo = document.getElementById('ditheringMasivo');
+    const umbralMasivo = document.getElementById('umbralMasivo');
+    const valorUmbralMasivo = document.getElementById('valorUmbralMasivo');
+    const previsualizacion = document.getElementById('previsualizacion');
 
-    const UMBRAL_DEFECTO = 127;
-    const DITHERING_DEFECTO = false;
+    function leerConfiguracion() {
+      return {
+        umbral: parseInt(umbralMasivo.value),
+        dithering: ditheringMasivo.checked
+      };
+    }
+
+    // Vista previa: usa el primer archivo seleccionado como referencia
+    // para que puedas calibrar umbral/dithering antes de subir toda la
+    // tanda, igual que en el panel principal.
+    async function actualizarPrevisualizacion() {
+      const files = Array.from(inputArchivos.files);
+      if (files.length === 0) {
+        previsualizacion.innerHTML = '<span class="previsualizacion-vacia">Elegí archivos para ver una vista previa acá</span>';
+        return;
+      }
+
+      const { umbral, dithering } = leerConfiguracion();
+
+      try {
+        const resultado = await procesarImagen(files[0], 128, 64, umbral, dithering);
+
+        let canvas = previsualizacion.querySelector('canvas');
+        if (!canvas) {
+          previsualizacion.innerHTML = '';
+          canvas = document.createElement('canvas');
+          previsualizacion.appendChild(canvas);
+        }
+        canvas.width = 128;
+        canvas.height = 64;
+
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        dibujarPreviewImagen(canvas, resultado.imagenData, resultado.imagenAncho, resultado.imagenAlto, '#4dd2ff');
+      } catch (err) {
+        console.error('Error en vista previa:', err);
+      }
+    }
+
+    inputArchivos.addEventListener('change', actualizarPrevisualizacion);
+    umbralMasivo.addEventListener('input', (e) => {
+      valorUmbralMasivo.textContent = e.target.value;
+      actualizarPrevisualizacion();
+    });
+    ditheringMasivo.addEventListener('change', actualizarPrevisualizacion);
 
     boton.addEventListener('click', async () => {
       const files = Array.from(inputArchivos.files);
@@ -100,6 +205,8 @@
         alert('Elegí uno o más archivos primero.');
         return;
       }
+
+      const { umbral, dithering } = leerConfiguracion();
 
       boton.disabled = true;
       lista.innerHTML = '';
@@ -118,7 +225,7 @@
         lista.appendChild(li);
 
         try {
-          const resultado = await procesarImagen(file, 128, 64, UMBRAL_DEFECTO, DITHERING_DEFECTO);
+          const resultado = await procesarImagen(file, 128, 64, umbral, dithering);
 
           const ctx = canvas.getContext('2d');
           ctx.fillStyle = '#000000';
@@ -130,7 +237,7 @@
             resultado.imagenData,
             resultado.imagenAncho,
             resultado.imagenAlto,
-            { origen: 'carga-masiva', fecha: Date.now() }
+            { origen: 'carga-masiva', umbral, dithering, fecha: Date.now() }
           );
 
           if (guardado.exito) {
