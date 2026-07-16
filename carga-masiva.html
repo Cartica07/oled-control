@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OLED Remota · Carga masiva al catálogo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --negro: #060503;
+      --panel: #14110c;
+      --metal-borde: #2c2519;
+      --ambar: #4dd2ff;
+      --ambar-suave: #2ba7d6;
+      --ambar-tenue: #0d5c7a;
+      --led-ok: #4fae6f;
+      --led-error: #d1543f;
+      --fuente-ui: 'Space Grotesk', system-ui, sans-serif;
+      --fuente-data: 'JetBrains Mono', ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; background: var(--negro); color: #e9ddc7;
+      font-family: var(--fuente-ui); display: flex; justify-content: center;
+      padding: 40px 18px 80px;
+    }
+    .hoja { width: 100%; max-width: 560px; }
+    h1 { font-size: 22px; margin: 0 0 6px; color: #f3e9d4; }
+    p.subtitulo { color: #a89c86; font-size: 13px; line-height: 1.5; margin: 0 0 24px; }
+    .panel {
+      background: var(--panel); border: 1px solid var(--metal-borde);
+      border-radius: 14px; padding: 20px;
+    }
+    .rotulo {
+      font-family: var(--fuente-data); font-size: 11px; letter-spacing: .12em;
+      text-transform: uppercase; color: var(--ambar-suave); display: block; margin-bottom: 8px;
+    }
+    input[type="file"] {
+      width: 100%; padding: 10px 12px; background: #0a0805;
+      border: 1px solid var(--metal-borde); border-radius: 8px; color: #f3e9d4;
+      font-family: var(--fuente-data); font-size: 13px; cursor: pointer;
+    }
+    .descripcion { font-size: 12px; color: #8a8070; margin: 8px 0 0; line-height: 1.4; }
+    button#botonSubir {
+      width: 100%; margin-top: 18px; background: var(--ambar); color: #1a1206;
+      border: none; border-radius: 9px; font-weight: 700; font-size: 14px;
+      padding: 13px 0; cursor: pointer;
+    }
+    button#botonSubir:disabled { opacity: .5; cursor: wait; }
+    ul#listaResultados {
+      list-style: none; margin: 18px 0 0; padding: 0;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px;
+    }
+    ul#listaResultados li {
+      background: #0a0805; border: 1px solid var(--metal-borde); border-radius: 8px;
+      padding: 8px; font-family: var(--fuente-data); font-size: 11px;
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+    }
+    ul#listaResultados li canvas {
+      width: 100%; height: auto; image-rendering: pixelated; background: #000;
+    }
+    ul#listaResultados li.ok { border-color: var(--led-ok); }
+    ul#listaResultados li.error { border-color: var(--led-error); color: #e08a7a; }
+    footer { text-align: center; margin-top: 22px; font-family: var(--fuente-data); font-size: 10px; color: #4d473a; }
+    footer a { color: var(--ambar-suave); }
+  </style>
+</head>
+<body>
+  <div class="hoja">
+    <h1>Carga masiva al catálogo</h1>
+    <p class="subtitulo">Elegí varias imágenes de una sola vez. Cada una se procesa igual que en el panel principal (128×64, umbral 127, dithering activado) y se guarda en el catálogo con el nombre del archivo. Esta página es una herramienta aparte: no envía nada a la OLED.</p>
+
+    <div class="panel">
+      <label class="rotulo" for="archivos">Imágenes a guardar</label>
+      <input type="file" id="archivos" accept="image/*" multiple />
+      <p class="descripcion">Podés seleccionar las 21 caras juntas (Ctrl/Cmd+clic o arrastrando la selección en el explorador de archivos).</p>
+
+      <button type="button" id="botonSubir">Subir todas al catálogo</button>
+
+      <ul id="listaResultados"></ul>
+    </div>
+
+    <footer>oled-mensajes · Firebase Realtime Database · <a href="index.html">Volver al panel</a></footer>
+  </div>
+
+  <script type="module">
+    import { procesarImagen, dibujarPreviewImagen } from './js/imageProcessor.js';
+    import { guardarImagenCatalogo } from './js/firebase.js';
+
+    const inputArchivos = document.getElementById('archivos');
+    const boton = document.getElementById('botonSubir');
+    const lista = document.getElementById('listaResultados');
+
+    const UMBRAL_DEFECTO = 127;
+    const DITHERING_DEFECTO = true;
+
+    boton.addEventListener('click', async () => {
+      const files = Array.from(inputArchivos.files);
+      if (files.length === 0) {
+        alert('Elegí uno o más archivos primero.');
+        return;
+      }
+
+      boton.disabled = true;
+      lista.innerHTML = '';
+
+      for (const file of files) {
+        const nombre = file.name.replace(/\.[^.]+$/, '');
+
+        const li = document.createElement('li');
+        const canvas = document.createElement('canvas');
+        canvas.width = 128;
+        canvas.height = 64;
+        const span = document.createElement('span');
+        span.textContent = `${nombre}: procesando…`;
+        li.appendChild(canvas);
+        li.appendChild(span);
+        lista.appendChild(li);
+
+        try {
+          const resultado = await procesarImagen(file, 128, 64, UMBRAL_DEFECTO, DITHERING_DEFECTO);
+
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          dibujarPreviewImagen(canvas, resultado.imagenData, resultado.imagenAncho, resultado.imagenAlto, '#4dd2ff');
+
+          const guardado = await guardarImagenCatalogo(
+            nombre,
+            resultado.imagenData,
+            resultado.imagenAncho,
+            resultado.imagenAlto,
+            { origen: 'carga-masiva', fecha: Date.now() }
+          );
+
+          if (guardado.exito) {
+            li.classList.add('ok');
+            span.textContent = `✅ guardada como "${guardado.key}"`;
+          } else {
+            li.classList.add('error');
+            span.textContent = `❌ ${guardado.error || 'error al guardar'}`;
+          }
+        } catch (err) {
+          console.error(err);
+          li.classList.add('error');
+          span.textContent = `❌ ${err.message}`;
+        }
+      }
+
+      boton.disabled = false;
+    });
+  </script>
+</body>
+</html>
