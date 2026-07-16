@@ -14,7 +14,7 @@ import {
   guardarImagenCatalogo,
   borrarImagenCatalogo
 } from './firebase.js';
-import { procesarImagen, dibujarPreviewImagen } from './imageProcessor.js';
+import { procesarImagen, procesarImagenDesdeDataURL, dibujarPreviewImagen } from './imageProcessor.js';
 import {
   obtenerElementos,
   poblarControles,
@@ -59,6 +59,15 @@ let cancionesCatalogo = {};
 
 // Catálogo de imágenes guardadas cargado desde Firebase (/imagenes)
 let imagenesCatalogo = {};
+
+// dataURL (128×64, ya redimensionado, SIN binarizar) de la imagen que
+// está actualmente activa -- puede venir de un archivo recién subido o
+// de una imagen del catálogo que se guardó con esta info. Mientras
+// exista, el umbral y el dithering se pueden reajustar libremente,
+// igual que con una subida nueva. Si es null (imagen de una versión
+// vieja del catálogo, o el estado que trae Firebase al arrancar), los
+// controles quedan inertes porque no hay nada que reprocesar.
+let imagenFuenteActual = null;
 
 // ===================================================
 // Estado de conexión del DISPOSITIVO (heartbeat)
@@ -196,23 +205,61 @@ function cambiarTipo(nuevoTipo) {
 // ===================================================
 // Gestión de Imágenes
 // ===================================================
+
+// El umbral y el dithering se pueden reajustar en vivo mientras exista
+// una "fuente" editable (imagenFuenteActual): un dataURL 128×64 ya
+// redimensionado pero SIN binarizar. Esa fuente puede venir de un
+// archivo recién subido, o de una imagen del catálogo que se guardó
+// CON esa copia (ver guardarImagenCatalogo). Si no hay fuente (subida
+// vieja del catálogo sin "preprocesada"), los controles se desactivan
+// porque no hay nada que reprocesar.
+function actualizarControlesSegunOrigen() {
+  const hayFuente = !!imagenFuenteActual;
+
+  elementos.umbral.disabled = !hayFuente;
+  elementos.dithering.disabled = !hayFuente;
+
+  if (elementos.avisoImagen) {
+    if (!hayFuente && estadoActual.tipo === 'imagen' && estadoActual.imagenData) {
+      elementos.avisoImagen.style.display = 'block';
+      elementos.avisoImagen.textContent = 'Esta imagen se guardó con una versión anterior del catálogo (sin copia editable): no se puede reajustar el umbral/dithering. Volvé a subirla para poder editarla.';
+      elementos.avisoImagen.classList.remove('error');
+    } else {
+      elementos.avisoImagen.style.display = 'none';
+    }
+  }
+}
+
+// Aplica el resultado de procesarImagen/procesarImagenDesdeDataURL al
+// estado y al preview, y guarda la copia editable para poder seguir
+// reajustando umbral/dithering después.
+function aplicarResultadoImagen(resultado) {
+  estadoActual.imagenData = resultado.imagenData;
+  estadoActual.imagenAncho = resultado.imagenAncho;
+  estadoActual.imagenAlto = resultado.imagenAlto;
+
+  if (resultado.preprocesada) {
+    imagenFuenteActual = resultado.preprocesada;
+  }
+
+  renderizar();
+  actualizarControlesSegunOrigen();
+  marcarEstado(`Imagen procesada: ${resultado.imagenAncho}×${resultado.imagenAlto}px`, 'ok', elementos);
+}
+
+// Dispara al elegir un archivo nuevo del disco.
 async function procesarYMostrarImagen() {
   const file = elementos.cargadorImagen.files[0];
   if (!file) return;
 
   try {
     marcarEstado('Procesando imagen…', null, elementos);
-    
+
     const umbral = parseInt(elementos.umbral.value);
     const dithering = elementos.dithering.checked;
     const resultado = await procesarImagen(file, 128, 64, umbral, dithering);
 
-    estadoActual.imagenData = resultado.imagenData;
-    estadoActual.imagenAncho = resultado.imagenAncho;
-    estadoActual.imagenAlto = resultado.imagenAlto;
-
-    renderizar();
-    marcarEstado(`Imagen procesada: ${resultado.imagenAncho}×${resultado.imagenAlto}px`, 'ok', elementos);
+    aplicarResultadoImagen(resultado);
 
     // Sugerir un nombre para el catálogo basado en el archivo, pero SIN
     // guardar nada todavía -- eso solo pasa si el usuario toca el botón
@@ -226,10 +273,32 @@ async function procesarYMostrarImagen() {
   }
 }
 
+// Dispara al mover el slider de umbral o tildar/destildar dithering,
+// tanto sobre un archivo recién subido como sobre una imagen del
+// catálogo que tenga copia editable (imagenFuenteActual).
+async function reprocesarImagenFuenteActual() {
+  if (!imagenFuenteActual) return;
+
+  try {
+    marcarEstado('Procesando imagen…', null, elementos);
+
+    const umbral = parseInt(elementos.umbral.value);
+    const dithering = elementos.dithering.checked;
+    const resultado = await procesarImagenDesdeDataURL(imagenFuenteActual, 128, 64, umbral, dithering);
+
+    aplicarResultadoImagen(resultado);
+  } catch (error) {
+    console.error('Error reprocesando imagen:', error);
+    marcarEstado(`Error: ${error.message}`, 'error', elementos);
+  }
+}
+
 // Guarda en el catálogo (/imagenes) la imagen que está actualmente
 // procesada y visible en el preview. Acción explícita del usuario,
 // separada de "subir imagen para el dispositivo": no todo lo que se
-// sube queda guardado, solo lo que se decide agregar acá.
+// sube queda guardado, solo lo que se decide agregar acá. Guarda
+// también la copia editable (imagenFuenteActual) y los valores de
+// umbral/dithering usados, para poder reajustarla más adelante.
 async function manejarGuardarEnGaleria() {
   if (estadoActual.tipo !== 'imagen' || !estadoActual.imagenData) {
     setAvisoGaleria('Primero subí y procesá una imagen para poder guardarla.', 'error');
@@ -248,7 +317,13 @@ async function manejarGuardarEnGaleria() {
     estadoActual.imagenData,
     estadoActual.imagenAncho,
     estadoActual.imagenAlto,
-    { origen: 'upload', fecha: Date.now() }
+    imagenFuenteActual,
+    {
+      origen: 'upload',
+      umbral: parseInt(elementos.umbral.value),
+      dithering: elementos.dithering.checked,
+      fecha: Date.now()
+    }
   );
 
   if (resultado.exito) {
@@ -343,9 +418,35 @@ function renderizarGaleria() {
       estadoActual.imagenData = entry.datos;
       estadoActual.imagenAncho = entry.ancho || 128;
       estadoActual.imagenAlto = entry.alto || 64;
+
+      // Limpiar el input de archivo: si quedaba un archivo de una subida
+      // anterior, no queremos que se confunda con la fuente que se está
+      // por activar acá.
+      elementos.cargadorImagen.value = '';
+
+      if (entry.preprocesada) {
+        // Esta imagen tiene copia editable: se puede seguir reajustando
+        // el umbral y el dithering como si se acabara de subir. Restauramos
+        // los controles a los valores con los que se guardó, para que el
+        // preview y los sliders arranquen sincronizados.
+        imagenFuenteActual = entry.preprocesada;
+        if (entry.meta && typeof entry.meta.umbral === 'number') {
+          elementos.umbral.value = entry.meta.umbral;
+          elementos.valorUmbral.textContent = String(entry.meta.umbral);
+        }
+        if (entry.meta && typeof entry.meta.dithering === 'boolean') {
+          elementos.dithering.checked = entry.meta.dithering;
+        }
+      } else {
+        // Guardada con una versión anterior del catálogo: no hay fuente
+        // editable, queda como bitmap fijo.
+        imagenFuenteActual = null;
+      }
+
       mostrarSeccionSegunTipo('imagen');
       marcarSegmentoActivo(elementos.grupoTipo, 'imagen');
       renderizar();
+      actualizarControlesSegunOrigen();
       cerrarPanelGaleria();
       marcarEstado(`Imagen "${key}" cargada desde la galería`, 'ok', elementos);
     });
@@ -594,16 +695,12 @@ function configurarEventos() {
   // Umbral de binarización
   elementos.umbral.addEventListener('input', (e) => {
     elementos.valorUmbral.textContent = e.target.value;
-    if (elementos.cargadorImagen.files.length > 0) {
-      procesarYMostrarImagen();
-    }
+    reprocesarImagenFuenteActual();
   });
 
   // Dithering (Floyd-Steinberg) vs umbral simple
   elementos.dithering.addEventListener('change', () => {
-    if (elementos.cargadorImagen.files.length > 0) {
-      procesarYMostrarImagen();
-    }
+    reprocesarImagenFuenteActual();
   });
 
   // Guardar la imagen actualmente procesada en el catálogo (galería)
@@ -680,6 +777,7 @@ async function cargarEstadoInicial() {
       poblarControles(estadoActual, elementos);
       mostrarSeccionSegunTipo(estadoActual.tipo);
       renderizar();
+      actualizarControlesSegunOrigen();
       // El LED de conexión ya no se marca acá: refleja el heartbeat del
       // dispositivo (ver iniciarMonitoreoConexion), no si el navegador
       // pudo leer Firebase, que es una cosa completamente distinta.
@@ -752,6 +850,7 @@ async function inicializar() {
   
   poblarControles(estadoActual, elementos);
   renderizar();
+  actualizarControlesSegunOrigen();
   marcarConexion('conectando…', null, elementos);
   
   configurarEventos();
