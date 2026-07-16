@@ -132,6 +132,16 @@ export function obtenerElementos() {
     valorUmbral: document.getElementById('valorUmbral'),
     dithering: document.getElementById('dithering'),
     avisoImagen: document.getElementById('avisoImagen'),
+
+    // Galería de imágenes guardadas
+    nombreGaleria: document.getElementById('nombreGaleria'),
+    botonGuardarGaleria: document.getElementById('botonGuardarGaleria'),
+    avisoGaleria: document.getElementById('avisoGaleria'),
+    botonGaleria: document.getElementById('botonGaleria'),
+    panelGaleria: document.getElementById('panelGaleria'),
+    cerrarGaleria: document.getElementById('cerrarGaleria'),
+    gridGaleria: document.getElementById('gridGaleria'),
+    galeriaVacio: document.getElementById('galeriaVacio'),
     
     // Controles de canción
     seleccionCancion: document.getElementById('seleccionCancion'),
