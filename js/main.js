@@ -196,30 +196,6 @@ function cambiarTipo(nuevoTipo) {
 // ===================================================
 // Gestión de Imágenes
 // ===================================================
-
-// El umbral y el dithering solo tienen sentido cuando hay un ARCHIVO
-// crudo para reprocesar (elementos.cargadorImagen.files[0]). Una imagen
-// elegida desde el catálogo ya es un bitmap final: esos controles no
-// aplican, así que se desactivan y se avisa, en vez de dejarlos
-// "vivos" reprocesando por atrás un archivo viejo que haya quedado en
-// el input de una subida anterior.
-function actualizarControlesSegunOrigen() {
-  const hayArchivo = elementos.cargadorImagen.files && elementos.cargadorImagen.files.length > 0;
-
-  elementos.umbral.disabled = !hayArchivo;
-  elementos.dithering.disabled = !hayArchivo;
-
-  if (elementos.avisoImagen) {
-    if (!hayArchivo && estadoActual.tipo === 'imagen' && estadoActual.imagenData) {
-      elementos.avisoImagen.style.display = 'block';
-      elementos.avisoImagen.textContent = 'Esta imagen viene del catálogo: el umbral y el dithering quedaron fijos desde que se guardó. Subí un archivo nuevo si querés volver a ajustarlos.';
-      elementos.avisoImagen.classList.remove('error');
-    } else {
-      elementos.avisoImagen.style.display = 'none';
-    }
-  }
-}
-
 async function procesarYMostrarImagen() {
   const file = elementos.cargadorImagen.files[0];
   if (!file) return;
@@ -236,7 +212,6 @@ async function procesarYMostrarImagen() {
     estadoActual.imagenAlto = resultado.imagenAlto;
 
     renderizar();
-    actualizarControlesSegunOrigen();
     marcarEstado(`Imagen procesada: ${resultado.imagenAncho}×${resultado.imagenAlto}px`, 'ok', elementos);
 
     // Sugerir un nombre para el catálogo basado en el archivo, pero SIN
@@ -368,18 +343,9 @@ function renderizarGaleria() {
       estadoActual.imagenData = entry.datos;
       estadoActual.imagenAncho = entry.ancho || 128;
       estadoActual.imagenAlto = entry.alto || 64;
-
-      // Limpiar el input de archivo: si quedaba un archivo de una subida
-      // anterior, mover el umbral o el dithering reprocesaba ESE archivo
-      // viejo por atrás en vez de no hacer nada, dando resultados
-      // inconsistentes con lo que se ve en pantalla (la imagen del
-      // catálogo ya es un bitmap fijo, no hay nada que reprocesar).
-      elementos.cargadorImagen.value = '';
-
       mostrarSeccionSegunTipo('imagen');
       marcarSegmentoActivo(elementos.grupoTipo, 'imagen');
       renderizar();
-      actualizarControlesSegunOrigen();
       cerrarPanelGaleria();
       marcarEstado(`Imagen "${key}" cargada desde la galería`, 'ok', elementos);
     });
@@ -714,7 +680,6 @@ async function cargarEstadoInicial() {
       poblarControles(estadoActual, elementos);
       mostrarSeccionSegunTipo(estadoActual.tipo);
       renderizar();
-      actualizarControlesSegunOrigen();
       // El LED de conexión ya no se marca acá: refleja el heartbeat del
       // dispositivo (ver iniciarMonitoreoConexion), no si el navegador
       // pudo leer Firebase, que es una cosa completamente distinta.
@@ -787,7 +752,6 @@ async function inicializar() {
   
   poblarControles(estadoActual, elementos);
   renderizar();
-  actualizarControlesSegunOrigen();
   marcarConexion('conectando…', null, elementos);
   
   configurarEventos();
