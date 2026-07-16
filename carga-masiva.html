@@ -68,7 +68,7 @@
 <body>
   <div class="hoja">
     <h1>Carga masiva al catálogo</h1>
-    <p class="subtitulo">Elegí varias imágenes de una sola vez. Cada una se procesa igual que en el panel principal (128×64, umbral 127, dithering activado) y se guarda en el catálogo con el nombre del archivo. Esta página es una herramienta aparte: no envía nada a la OLED.</p>
+    <p class="subtitulo">Elegí varias imágenes de una sola vez. Cada una se procesa igual que en el panel principal (128×64, umbral 127, dithering desactivado) y se guarda en el catálogo con el nombre del archivo. Esta página es una herramienta aparte: no envía nada a la OLED.</p>
 
     <div class="panel">
       <label class="rotulo" for="archivos">Imágenes a guardar</label>
@@ -92,7 +92,7 @@
     const lista = document.getElementById('listaResultados');
 
     const UMBRAL_DEFECTO = 127;
-    const DITHERING_DEFECTO = true;
+    const DITHERING_DEFECTO = false;
 
     boton.addEventListener('click', async () => {
       const files = Array.from(inputArchivos.files);
