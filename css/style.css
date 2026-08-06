@@ -220,8 +220,7 @@ h1 {
   margin-bottom: 0;
 }
 
-.campo label.rotulo,
-fieldset .rotulo {
+.rotulo {
   display: block;
   font-family: var(--fuente-data);
   font-size: 11px;
@@ -229,6 +228,15 @@ fieldset .rotulo {
   text-transform: uppercase;
   color: var(--ambar-suave);
   margin-bottom: 8px;
+}
+
+/* Para títulos que quedan pegados a las opciones de abajo (ej. "Tipo
+   de contenido" sobre los 5 botones, "Modo de texto" sobre la lista) --
+   el margin-bottom base (8px) es apenas un respiro entre etiqueta y
+   campo de formulario simple, pero se ve muy ajustado sobre bloques
+   más grandes como un segmento de varios botones o una lista de tarjetas. */
+.rotulo-espaciado {
+  margin-bottom: 14px !important;
 }
 
 textarea,
@@ -688,26 +696,6 @@ footer {
 /* ===================================================
    V1.14: ajustes de layout y galería
    =================================================== */
-
-/* Fila "Acciones" de Canción: antes el input[type=file] (que por regla
-   general tiene width:100%) se achicaba mal al compartir fila con el
-   botón "Previsualizar" dentro de un flex simple. Achicando el botón a
-   su ancho natural y dejando que el file input use el resto del
-   espacio, quedan proporcionados en vez de amontonados. */
-.fila-acciones-cancion {
-  display: flex;
-  gap: 8px;
-  align-items: stretch;
-}
-
-.fila-acciones-cancion button {
-  flex-shrink: 0;
-}
-
-.fila-acciones-cancion input[type="file"] {
-  flex: 1;
-  min-width: 0;
-}
 
 /* Título "DIBUJAR" de la sección Dibujo, centrado. */
 .titulo-dibujo {
