@@ -69,10 +69,10 @@ let cancionesCatalogo = {};
 let imagenesCatalogo = {};
 
 // dataURL (128×64, ya redimensionado, SIN binarizar) de la imagen que
-// está actualmente activa -- puede venir de un archivo recién subido o
-// de una imagen del catálogo que se guardó con esta info. Mientras
-// exista, el umbral y el dithering se pueden reajustar libremente,
-// igual que con una subida nueva. Si es null (imagen de una versión
+// está actualmente activa -- puede venir de un archivo recién subido
+// (sección Imagen o Galería) o de una imagen del catálogo que se
+// guardó con esta info. Mientras exista, el umbral y el dithering se
+// pueden reajustar libremente. Si es null (imagen de una versión
 // vieja del catálogo, o el estado que trae Firebase al arrancar), los
 // controles quedan inertes porque no hay nada que reprocesar.
 let imagenFuenteActual = null;
@@ -167,21 +167,30 @@ function renderizar() {
     return;
   }
 
-  // V1.12: "Dibujo" tampoco toca el preview de arriba -- el propio
-  // lienzo de dibujo (#lienzoDibujo, ver seccionDibujo) ya funciona
-  // como su vista previa en tiempo real, a resolución nativa 128×64.
-  // Sin este corte, tipo="dibujo" caería por defecto en el renderizado
-  // de texto de más abajo y mostraría contenido viejo/incorrecto en el
-  // preview de arriba.
+  // V1.13: "Dibujo" también refleja en vivo la pantalla virtual
+  // principal de arriba, igual que Texto/Imagen -- antes se apoyaba
+  // solo en el propio lienzo (#lienzoDibujo) como preview. Se convierte
+  // el trazo actual a bitmap y se dibuja arriba con el mismo pipeline
+  // que una imagen, sin pisar estadoActual.tipo (sigue siendo "dibujo").
   if (estadoActual.tipo === 'dibujo') {
     detenerScroll();
+    actualizarPreviewDesdeLienzo();
     return;
   }
 
-  // Si es imagen, no animar
+  // Imagen: dibuja directo. Galería: mismo bitmap, pero estadoActual.tipo
+  // se queda en "galeria" (no salta a "imagen") para que la sección
+  // correcta se mantenga visible -- se fuerza tipo:"imagen" solo para
+  // este dibujado puntual, igual que se hace al enviar (enviarAFirebase).
   if (estadoActual.tipo === 'imagen') {
     detenerScroll();
     dibujarOLED(elementos.canvas, estadoActual);
+    return;
+  }
+
+  if (estadoActual.tipo === 'galeria') {
+    detenerScroll();
+    dibujarOLED(elementos.canvas, Object.assign({}, estadoActual, { tipo: 'imagen' }));
     return;
   }
 
@@ -194,38 +203,63 @@ function renderizar() {
   }
 }
 
+// V1.13: convierte el lienzo de dibujo a bitmap y lo pinta en la
+// pantalla virtual principal (#oled), igual que hace enviarAFirebase()
+// al mandar un dibujo -- pero acá es solo para el preview, no toca
+// Firebase. Se throttlea a como mucho una vez por frame: los eventos
+// pointermove pueden disparar muchas notificaciones seguidas mientras
+// se arrastra, y no tiene sentido reconvertir el canvas más rápido de
+// lo que la pantalla puede mostrar.
+let previewDibujoPendiente = false;
+function actualizarPreviewDesdeLienzo() {
+  if (!elementos.lienzoDibujo || previewDibujoPendiente) return;
+  previewDibujoPendiente = true;
+
+  requestAnimationFrame(() => {
+    previewDibujoPendiente = false;
+    // Pudo cambiar de pestaña mientras se esperaba el frame.
+    if (estadoActual.tipo !== 'dibujo') return;
+
+    const resultado = obtenerResultadoImagen(elementos.lienzoDibujo);
+    dibujarOLED(elementos.canvas, Object.assign({}, estadoActual, {
+      tipo: 'imagen',
+      imagenData: resultado.imagenData,
+      imagenAncho: resultado.imagenAncho,
+      imagenAlto: resultado.imagenAlto
+    }));
+  });
+}
+
 // ===================================================
 // Gestión de Tipo de Contenido
 // ===================================================
 function mostrarSeccionSegunTipo(tipo) {
   marcarSegmentoActivo(elementos.grupoTipo, tipo);
 
-  if (tipo === 'texto') {
-    elementos.seccionTexto.style.display = 'block';
-    elementos.seccionImagen.style.display = 'none';
-    if (elementos.seccionCancion) elementos.seccionCancion.style.display = 'none';
-    if (elementos.seccionDibujo) elementos.seccionDibujo.style.display = 'none';
-  } else if (tipo === 'imagen') {
-    elementos.seccionTexto.style.display = 'none';
-    elementos.seccionImagen.style.display = 'block';
-    if (elementos.seccionCancion) elementos.seccionCancion.style.display = 'none';
-    if (elementos.seccionDibujo) elementos.seccionDibujo.style.display = 'none';
-  } else if (tipo === 'cancion') {
-    elementos.seccionTexto.style.display = 'none';
-    elementos.seccionImagen.style.display = 'none';
-    if (elementos.seccionCancion) elementos.seccionCancion.style.display = 'block';
-    if (elementos.seccionDibujo) elementos.seccionDibujo.style.display = 'none';
-  } else if (tipo === 'dibujo') {
-    elementos.seccionTexto.style.display = 'none';
-    elementos.seccionImagen.style.display = 'none';
-    if (elementos.seccionCancion) elementos.seccionCancion.style.display = 'none';
-    if (elementos.seccionDibujo) elementos.seccionDibujo.style.display = 'block';
-  }
+  const secciones = {
+    texto: elementos.seccionTexto,
+    imagen: elementos.seccionImagen,
+    cancion: elementos.seccionCancion,
+    dibujo: elementos.seccionDibujo,
+    galeria: elementos.seccionGaleria
+  };
+
+  Object.keys(secciones).forEach((clave) => {
+    const el = secciones[clave];
+    if (el) el.style.display = (clave === tipo) ? 'block' : 'none';
+  });
 }
 
 function cambiarTipo(nuevoTipo) {
   estadoActual.tipo = nuevoTipo;
   mostrarSeccionSegunTipo(nuevoTipo);
+
+  // Al entrar a Galería, refrescar el catálogo por si se guardó algo
+  // desde otra pestaña/dispositivo mientras tanto.
+  if (nuevoTipo === 'galeria') {
+    poblarCatalogoImagenes();
+  }
+
   renderizar();
 }
 
@@ -240,21 +274,23 @@ function cambiarTipo(nuevoTipo) {
 // CON esa copia (ver guardarImagenCatalogo). Si no hay fuente (subida
 // vieja del catálogo sin "preprocesada"), los controles se desactivan
 // porque no hay nada que reprocesar.
-function actualizarControlesSegunOrigen() {
+// El umbral y el dithering se pueden reajustar en vivo mientras exista
+// una "fuente" editable (imagenFuenteActual): un dataURL 128×64 ya
+// redimensionado pero SIN binarizar. Esa fuente puede venir de un
+// archivo recién subido (Imagen o Galería), o de una imagen del
+// catálogo que se guardó CON esa copia (ver guardarImagenCatalogo). Si
+// no hay fuente (subida vieja del catálogo sin "preprocesada"), los
+// dos pares de controles (Imagen y Galería) quedan deshabilitados
+// porque no hay nada que reprocesar -- sin texto de aviso, la imagen
+// sigue siendo perfectamente utilizable tal cual está guardada, solo
+// que fija.
+function actualizarControlesEdicionImagen() {
   const hayFuente = !!imagenFuenteActual;
 
-  elementos.umbral.disabled = !hayFuente;
-  elementos.dithering.disabled = !hayFuente;
-
-  if (elementos.avisoImagen) {
-    if (!hayFuente && estadoActual.tipo === 'imagen' && estadoActual.imagenData) {
-      elementos.avisoImagen.style.display = 'block';
-      elementos.avisoImagen.textContent = 'Esta imagen se guardó con una versión anterior del catálogo (sin copia editable): no se puede reajustar el umbral/dithering. Volvé a subirla para poder editarla.';
-      elementos.avisoImagen.classList.remove('error');
-    } else {
-      elementos.avisoImagen.style.display = 'none';
-    }
-  }
+  if (elementos.umbral) elementos.umbral.disabled = !hayFuente;
+  if (elementos.dithering) elementos.dithering.disabled = !hayFuente;
+  if (elementos.umbralGaleria) elementos.umbralGaleria.disabled = !hayFuente;
+  if (elementos.ditheringGaleria) elementos.ditheringGaleria.disabled = !hayFuente;
 }
 
 // Aplica el resultado de procesarImagen/procesarImagenDesdeDataURL al
@@ -270,7 +306,7 @@ function aplicarResultadoImagen(resultado) {
   }
 
   renderizar();
-  actualizarControlesSegunOrigen();
+  actualizarControlesEdicionImagen();
   marcarEstado(`Imagen procesada: ${resultado.imagenAncho}×${resultado.imagenAlto}px`, 'ok', elementos);
 }
 
@@ -300,17 +336,19 @@ async function procesarYMostrarImagen() {
   }
 }
 
-// Dispara al mover el slider de umbral o tildar/destildar dithering,
-// tanto sobre un archivo recién subido como sobre una imagen del
-// catálogo que tenga copia editable (imagenFuenteActual).
-async function reprocesarImagenFuenteActual() {
+// Dispara al mover cualquiera de los dos sliders de umbral, o
+// tildar/destildar cualquiera de los dos switches de dithering (el
+// par de la sección Imagen, o el de la sección Galería) -- se le pasa
+// explícitamente de cuál par leer, para no mezclar los valores de una
+// sección con el resultado de la otra.
+async function reprocesarImagenFuenteActual(umbralEl, ditheringEl) {
   if (!imagenFuenteActual) return;
 
   try {
     marcarEstado('Procesando imagen…', null, elementos);
 
-    const umbral = parseInt(elementos.umbral.value);
-    const dithering = elementos.dithering.checked;
+    const umbral = parseInt(umbralEl.value);
+    const dithering = ditheringEl.checked;
     const resultado = await procesarImagenDesdeDataURL(imagenFuenteActual, 128, 64, umbral, dithering);
 
     aplicarResultadoImagen(resultado);
@@ -412,14 +450,15 @@ async function manejarGuardarDibujoEnGaleria() {
 }
 
 // ===================================================
-// Galería de imágenes guardadas: catálogo, selección, borrado
+// V1.13: Galería -- sección propia con el catálogo completo.
+// Seleccionar un item deja estadoActual.tipo="galeria" (no salta a
+// "imagen"): la sección Galería se queda a la vista, con sus propios
+// controles de umbral/dithering para reajustar la selección ahí mismo.
 // ===================================================
 async function poblarCatalogoImagenes() {
   try {
     imagenesCatalogo = await listarImagenes() || {};
-    if (elementos.panelGaleria && elementos.panelGaleria.style.display !== 'none') {
-      renderizarGaleria();
-    }
+    renderizarGaleria();
   } catch (err) {
     console.error('Error cargando catálogo de imágenes:', err);
   }
@@ -446,7 +485,7 @@ function renderizarGaleria() {
 
     const item = document.createElement('div');
     item.className = 'item-galeria';
-    if (estadoActual.tipo === 'imagen' && estadoActual.imagenData === entry.datos) {
+    if (estadoActual.tipo === 'galeria' && estadoActual.imagenData === entry.datos) {
       item.classList.add('activo');
     }
 
@@ -476,35 +515,34 @@ function renderizarGaleria() {
       const resultado = await borrarImagenCatalogo(key);
       if (resultado.exito) {
         await poblarCatalogoImagenes();
-        renderizarGaleria();
       } else {
         marcarEstado('No se pudo borrar la imagen: ' + (resultado.error || ''), 'error', elementos);
       }
     });
 
     item.addEventListener('click', () => {
-      estadoActual.tipo = 'imagen';
+      estadoActual.tipo = 'galeria';
       estadoActual.imagenData = entry.datos;
       estadoActual.imagenAncho = entry.ancho || 128;
       estadoActual.imagenAlto = entry.alto || 64;
 
-      // Limpiar el input de archivo: si quedaba un archivo de una subida
-      // anterior, no queremos que se confunda con la fuente que se está
-      // por activar acá.
-      elementos.cargadorImagen.value = '';
+      // Limpiar el input de "añadir nueva": si quedaba un archivo de una
+      // subida anterior, no queremos que se confunda con la fuente que
+      // se está por activar acá.
+      if (elementos.cargadorImagenGaleria) elementos.cargadorImagenGaleria.value = '';
 
       if (entry.preprocesada) {
         // Esta imagen tiene copia editable: se puede seguir reajustando
         // el umbral y el dithering como si se acabara de subir. Restauramos
-        // los controles a los valores con los que se guardó, para que el
-        // preview y los sliders arranquen sincronizados.
+        // los controles de Galería a los valores con los que se guardó,
+        // para que el preview y los sliders arranquen sincronizados.
         imagenFuenteActual = entry.preprocesada;
         if (entry.meta && typeof entry.meta.umbral === 'number') {
-          elementos.umbral.value = entry.meta.umbral;
-          elementos.valorUmbral.textContent = String(entry.meta.umbral);
+          elementos.umbralGaleria.value = entry.meta.umbral;
+          elementos.valorUmbralGaleria.textContent = String(entry.meta.umbral);
         }
         if (entry.meta && typeof entry.meta.dithering === 'boolean') {
-          elementos.dithering.checked = entry.meta.dithering;
+          elementos.ditheringGaleria.checked = entry.meta.dithering;
         }
       } else {
         // Guardada con una versión anterior del catálogo: no hay fuente
@@ -512,11 +550,14 @@ function renderizarGaleria() {
         imagenFuenteActual = null;
       }
 
-      mostrarSeccionSegunTipo('imagen');
-      marcarSegmentoActivo(elementos.grupoTipo, 'imagen');
+      // Precargar el nombre: un simple click en "Guardar en el catálogo"
+      // sobrescribe esta misma entrada con los cambios; para guardar
+      // aparte alcanza con cambiar el nombre antes de guardar.
+      if (elementos.nombreGaleriaNueva) elementos.nombreGaleriaNueva.value = key;
+
+      renderizarGaleria(); // re-dibuja el grid para mover el resaltado "activo"
       renderizar();
-      actualizarControlesSegunOrigen();
-      cerrarPanelGaleria();
+      actualizarControlesEdicionImagen();
       marcarEstado(`Imagen "${key}" cargada desde la galería`, 'ok', elementos);
     });
 
@@ -527,16 +568,80 @@ function renderizarGaleria() {
   });
 }
 
-function abrirPanelGaleria() {
-  if (!elementos.panelGaleria) return;
-  elementos.panelGaleria.style.display = 'block';
-  renderizarGaleria();
-  poblarCatalogoImagenes(); // refresca por si se subió algo desde otra pestaña
+// Procesa un archivo nuevo subido desde la sección Galería (usa el par
+// umbral/dithering propio de esta sección) y lo deja listo en el
+// preview para ponerle nombre y guardarlo.
+async function procesarYMostrarImagenGaleria() {
+  const file = elementos.cargadorImagenGaleria.files[0];
+  if (!file) return;
+
+  try {
+    marcarEstado('Procesando imagen…', null, elementos);
+
+    const umbral = parseInt(elementos.umbralGaleria.value);
+    const dithering = elementos.ditheringGaleria.checked;
+    const resultado = await procesarImagen(file, 128, 64, umbral, dithering);
+
+    estadoActual.tipo = 'galeria';
+    aplicarResultadoImagen(resultado);
+    renderizarGaleria(); // por si había una entrada seleccionada, sacarle el resaltado
+
+    if (elementos.nombreGaleriaNueva && !elementos.nombreGaleriaNueva.value) {
+      elementos.nombreGaleriaNueva.value = file.name.replace(/\.[^.]+$/, '');
+    }
+  } catch (error) {
+    console.error('Error procesando imagen:', error);
+    marcarEstado(`Error: ${error.message}`, 'error', elementos);
+  }
 }
 
-function cerrarPanelGaleria() {
-  if (!elementos.panelGaleria) return;
-  elementos.panelGaleria.style.display = 'none';
+function setAvisoGaleriaNueva(text, tipo = null) {
+  if (!elementos.avisoGaleriaNueva) return;
+  elementos.avisoGaleriaNueva.style.display = text ? 'block' : 'none';
+  elementos.avisoGaleriaNueva.textContent = text || '';
+  if (tipo === 'error') elementos.avisoGaleriaNueva.classList.add('error');
+  else elementos.avisoGaleriaNueva.classList.remove('error');
+}
+
+// Guarda en el catálogo lo que esté actualmente activo en la sección
+// Galería -- ya sea una imagen recién subida con "Añadir una imagen
+// nueva", o una imagen del catálogo que se acaba de reajustar. Si el
+// nombre coincide con una entrada existente, la reemplaza (mismo
+// comportamiento que guardarImagenCatalogo en firebase.js: la clave es
+// el nombre).
+async function manejarGuardarNuevaEnGaleria() {
+  if (estadoActual.tipo !== 'galeria' || !estadoActual.imagenData) {
+    setAvisoGaleriaNueva('Primero subí una imagen nueva o seleccioná una del catálogo.', 'error');
+    return;
+  }
+
+  const nombre = (elementos.nombreGaleriaNueva && elementos.nombreGaleriaNueva.value.trim()) || '';
+  if (!nombre) {
+    setAvisoGaleriaNueva('Poné un nombre para guardar la imagen en el catálogo.', 'error');
+    return;
+  }
+
+  setAvisoGaleriaNueva('Guardando…');
+  const resultado = await guardarImagenCatalogo(
+    nombre,
+    estadoActual.imagenData,
+    estadoActual.imagenAncho,
+    estadoActual.imagenAlto,
+    imagenFuenteActual,
+    {
+      origen: 'upload',
+      umbral: parseInt(elementos.umbralGaleria.value),
+      dithering: elementos.ditheringGaleria.checked,
+      fecha: Date.now()
+    }
+  );
+
+  if (resultado.exito) {
+    await poblarCatalogoImagenes();
+    setAvisoGaleriaNueva(`Guardada en el catálogo como "${resultado.key}"`);
+  } else {
+    setAvisoGaleriaNueva('No se pudo guardar: ' + (resultado.error || ''), 'error');
+  }
 }
 
 // ===================================================
@@ -761,35 +866,40 @@ function configurarEventos() {
   // el catálogo es una acción aparte (botón "Añadir imagen al catálogo").
   elementos.cargadorImagen.addEventListener('change', () => procesarYMostrarImagen());
 
-  // Umbral de binarización
+  // Umbral de binarización (sección Imagen)
   elementos.umbral.addEventListener('input', (e) => {
     elementos.valorUmbral.textContent = e.target.value;
-    reprocesarImagenFuenteActual();
+    reprocesarImagenFuenteActual(elementos.umbral, elementos.dithering);
   });
 
-  // Dithering (Floyd-Steinberg) vs umbral simple
+  // Dithering (Floyd-Steinberg) vs umbral simple (sección Imagen)
   elementos.dithering.addEventListener('change', () => {
-    reprocesarImagenFuenteActual();
+    reprocesarImagenFuenteActual(elementos.umbral, elementos.dithering);
   });
 
-  // Guardar la imagen actualmente procesada en el catálogo (galería)
+  // Guardar la imagen actualmente procesada en el catálogo
   if (elementos.botonGuardarGaleria) {
     elementos.botonGuardarGaleria.addEventListener('click', manejarGuardarEnGaleria);
   }
 
-  // Galería de imágenes guardadas
-  if (elementos.botonGaleria) {
-    elementos.botonGaleria.addEventListener('click', () => {
-      const abierta = elementos.panelGaleria && elementos.panelGaleria.style.display !== 'none';
-      if (abierta) {
-        cerrarPanelGaleria();
-      } else {
-        abrirPanelGaleria();
-      }
+  // V1.13: sección Galería -- añadir imagen nueva, reajustar la
+  // seleccionada (mismo par umbral/dithering, pero el de esta sección).
+  if (elementos.cargadorImagenGaleria) {
+    elementos.cargadorImagenGaleria.addEventListener('change', () => procesarYMostrarImagenGaleria());
+  }
+  if (elementos.umbralGaleria) {
+    elementos.umbralGaleria.addEventListener('input', (e) => {
+      elementos.valorUmbralGaleria.textContent = e.target.value;
+      reprocesarImagenFuenteActual(elementos.umbralGaleria, elementos.ditheringGaleria);
     });
   }
-  if (elementos.cerrarGaleria) {
-    elementos.cerrarGaleria.addEventListener('click', cerrarPanelGaleria);
+  if (elementos.ditheringGaleria) {
+    elementos.ditheringGaleria.addEventListener('change', () => {
+      reprocesarImagenFuenteActual(elementos.umbralGaleria, elementos.ditheringGaleria);
+    });
+  }
+  if (elementos.botonGuardarGaleriaNueva) {
+    elementos.botonGuardarGaleriaNueva.addEventListener('click', manejarGuardarNuevaEnGaleria);
   }
 
   // V1.12: Dibujo -- grosor, deshacer, limpiar, guardar en catálogo
@@ -806,12 +916,15 @@ function configurarEventos() {
     elementos.botonDeshacerDibujo.addEventListener('click', () => {
       if (!deshacerTrazo()) {
         marcarEstado('No hay nada más para deshacer.', null, elementos);
+      } else {
+        actualizarPreviewDesdeLienzo();
       }
     });
   }
   if (elementos.botonLimpiarDibujo) {
     elementos.botonLimpiarDibujo.addEventListener('click', () => {
       limpiarLienzo(elementos.lienzoDibujo);
+      actualizarPreviewDesdeLienzo();
     });
   }
   if (elementos.botonGuardarGaleriaDibujo) {
@@ -872,7 +985,7 @@ async function cargarEstadoInicial() {
       poblarControles(estadoActual, elementos);
       mostrarSeccionSegunTipo(estadoActual.tipo);
       renderizar();
-      actualizarControlesSegunOrigen();
+      actualizarControlesEdicionImagen();
       // El LED de conexión ya no se marca acá: refleja el heartbeat del
       // dispositivo (ver iniciarMonitoreoConexion), no si el navegador
       // pudo leer Firebase, que es una cosa completamente distinta.
@@ -934,6 +1047,27 @@ async function enviarAFirebase() {
       return;
     }
 
+    // V1.13: Galería -- misma idea que Dibujo: payload TEMPORAL con
+    // tipo forzado a "imagen", sin pisar estadoActual.tipo, así el
+    // usuario se queda en la pestaña Galería después de enviar. La
+    // imagen ya está procesada (estadoActual.imagenData), no hace
+    // falta reconvertir nada acá.
+    if (estadoActual.tipo === 'galeria') {
+      const payloadGaleria = Object.assign({}, estadoActual, { tipo: 'imagen' });
+      const resultado = await enviarEstado(payloadGaleria);
+
+      if (resultado.exito) {
+        marcarEstado(
+          `Enviado ✅ · v${resultado.version}. La OLED la toma en el próximo chequeo.`,
+          'ok',
+          elementos
+        );
+      } else {
+        marcarEstado('Error al enviar. Revisar conexión.', 'error', elementos);
+      }
+      return;
+    }
+
     // asegurar que el estadoActual tiene campos de canción cuando corresponda
     if (estadoActual.tipo === 'cancion') {
       // si el usuario eligió una canción del catálogo pero no cargó notas en memoria,
@@ -975,11 +1109,11 @@ async function inicializar() {
   
   poblarControles(estadoActual, elementos);
   renderizar();
-  actualizarControlesSegunOrigen();
+  actualizarControlesEdicionImagen();
   marcarConexion('conectando…', null, elementos);
 
   if (elementos.lienzoDibujo) {
-    inicializarDibujo(elementos.lienzoDibujo);
+    inicializarDibujo(elementos.lienzoDibujo, actualizarPreviewDesdeLienzo);
   }
 
   configurarEventos();
