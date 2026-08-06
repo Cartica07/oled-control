@@ -115,6 +115,7 @@ export function obtenerElementos() {
     seccionImagen: document.getElementById('seccionImagen'),
     seccionCancion: document.getElementById('seccionCancion'),
     seccionDibujo: document.getElementById('seccionDibujo'),
+    seccionGaleria: document.getElementById('seccionGaleria'),
     
     // Texto y contador
     texto: document.getElementById('texto'),
@@ -132,15 +133,20 @@ export function obtenerElementos() {
     umbral: document.getElementById('umbral'),
     valorUmbral: document.getElementById('valorUmbral'),
     dithering: document.getElementById('dithering'),
-    avisoImagen: document.getElementById('avisoImagen'),
 
-    // Galería de imágenes guardadas
+    // Guardar imagen actual (sección Imagen) en el catálogo
     nombreGaleria: document.getElementById('nombreGaleria'),
     botonGuardarGaleria: document.getElementById('botonGuardarGaleria'),
     avisoGaleria: document.getElementById('avisoGaleria'),
-    botonGaleria: document.getElementById('botonGaleria'),
-    panelGaleria: document.getElementById('panelGaleria'),
-    cerrarGaleria: document.getElementById('cerrarGaleria'),
+
+    // Sección Galería: catálogo completo, añadir nueva, reeditar, borrar
+    cargadorImagenGaleria: document.getElementById('cargadorImagenGaleria'),
+    nombreGaleriaNueva: document.getElementById('nombreGaleriaNueva'),
+    botonGuardarGaleriaNueva: document.getElementById('botonGuardarGaleriaNueva'),
+    avisoGaleriaNueva: document.getElementById('avisoGaleriaNueva'),
+    ditheringGaleria: document.getElementById('ditheringGaleria'),
+    umbralGaleria: document.getElementById('umbralGaleria'),
+    valorUmbralGaleria: document.getElementById('valorUmbralGaleria'),
     gridGaleria: document.getElementById('gridGaleria'),
     galeriaVacio: document.getElementById('galeriaVacio'),
     
