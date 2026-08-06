@@ -116,6 +116,7 @@ export function obtenerElementos() {
     seccionCancion: document.getElementById('seccionCancion'),
     seccionDibujo: document.getElementById('seccionDibujo'),
     seccionGaleria: document.getElementById('seccionGaleria'),
+    seccionGaleriaFinal: document.getElementById('seccionGaleriaFinal'),
     
     // Texto y contador
     texto: document.getElementById('texto'),
@@ -155,14 +156,13 @@ export function obtenerElementos() {
     // Controles de canción
     seleccionCancion: document.getElementById('seleccionCancion'),
     inputRepeticiones: document.getElementById('inputRepeticiones'),
-    previewCancion: document.getElementById('previewCancion'),
-    cargadorCancion: document.getElementById('cargadorCancion'),
     avisoCancion: document.getElementById('avisoCancion'),
 
     // Controles de dibujo
     lienzoDibujo: document.getElementById('lienzoDibujo'),
     grupoGrosor: document.getElementById('grupoGrosor'),
     botonDeshacerDibujo: document.getElementById('botonDeshacerDibujo'),
+    botonRehacerDibujo: document.getElementById('botonRehacerDibujo'),
     botonLimpiarDibujo: document.getElementById('botonLimpiarDibujo'),
     nombreGaleriaDibujo: document.getElementById('nombreGaleriaDibujo'),
     botonGuardarGaleriaDibujo: document.getElementById('botonGuardarGaleriaDibujo'),
