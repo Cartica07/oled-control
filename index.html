@@ -45,6 +45,7 @@
         <button type="button" data-valor="texto" class="activo">Texto</button>
         <button type="button" data-valor="imagen">Imagen</button>
         <button type="button" data-valor="cancion">Canción</button>
+        <button type="button" data-valor="dibujo">Dibujo</button>
       </div>
     </div>
 
@@ -211,6 +212,54 @@
       </div>
 
       <div id="avisoCancion" class="aviso" style="display:none;"></div>
+
+    </div>
+
+    <!-- Sección de DIBUJO (oculta inicialmente) -->
+    <div id="seccionDibujo" style="display: none;">
+
+      <div class="campo">
+        <span class="rotulo">Dibujar</span>
+        <p class="descripcion-campo">Dibujá directo sobre el espacio de la pantalla (128×64). Al enviar o guardar se convierte al mismo formato que una imagen subida.</p>
+
+        <div class="marco-dibujo">
+          <canvas id="lienzoDibujo" width="128" height="64"></canvas>
+        </div>
+      </div>
+
+      <div class="fila-doble">
+        <fieldset>
+          <span class="rotulo">Grosor</span>
+          <div class="segmento" id="grupoGrosor">
+            <button type="button" data-valor="1">1</button>
+            <button type="button" data-valor="2" class="activo">2</button>
+            <button type="button" data-valor="3">3</button>
+            <button type="button" data-valor="4">4</button>
+            <button type="button" data-valor="6">6</button>
+          </div>
+        </fieldset>
+
+        <div class="campo">
+          <label class="rotulo">Acciones</label>
+          <div style="display:flex; gap:8px;">
+            <button id="botonDeshacerDibujo" type="button" class="boton-secundario">Deshacer</button>
+            <button id="botonLimpiarDibujo" type="button" class="boton-secundario">Limpiar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Guardar en catálogo: mismo catálogo /imagenes que usa la
+           sección Imagen -- un dibujo guardado se ve y se usa exactamente
+           igual que una imagen subida guardada. -->
+      <div class="campo">
+        <label class="rotulo" for="nombreGaleriaDibujo">Añadir este dibujo al catálogo</label>
+        <div class="fila-guardar-galeria">
+          <input type="text" id="nombreGaleriaDibujo" placeholder="Nombre para guardarlo" maxlength="60" />
+          <button type="button" id="botonGuardarGaleriaDibujo" class="boton-secundario">Añadir dibujo al catálogo</button>
+        </div>
+        <p class="descripcion-campo">Guarda una copia del dibujo actual en el mismo catálogo de imágenes, para reusarlo después sin volver a dibujarlo.</p>
+        <div id="avisoGaleriaDibujo" class="aviso" style="display: none;"></div>
+      </div>
 
     </div>
 
