@@ -670,19 +670,6 @@ button#enviar:disabled {
   color: var(--ambar-brillo);
 }
 
-.item-galeria-borrar {
-  background: transparent;
-  border: none;
-  color: #6b3b32;
-  font-size: 10px;
-  cursor: pointer;
-  padding: 0;
-}
-
-.item-galeria-borrar:hover {
-  color: var(--led-error);
-}
-
 footer {
   text-align: center;
   margin-top: 26px;
@@ -697,6 +684,67 @@ footer {
     transition: none;
   }
 }
+
+/* ===================================================
+   V1.14: ajustes de layout y galería
+   =================================================== */
+
+/* Fila "Acciones" de Canción: antes el input[type=file] (que por regla
+   general tiene width:100%) se achicaba mal al compartir fila con el
+   botón "Previsualizar" dentro de un flex simple. Achicando el botón a
+   su ancho natural y dejando que el file input use el resto del
+   espacio, quedan proporcionados en vez de amontonados. */
+.fila-acciones-cancion {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.fila-acciones-cancion button {
+  flex-shrink: 0;
+}
+
+.fila-acciones-cancion input[type="file"] {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Título "DIBUJAR" de la sección Dibujo, centrado. */
+.titulo-dibujo {
+  display: block;
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: .14em;
+  margin-bottom: 8px;
+}
+
+/* Ícono de basura junto a "Galería guardada": borra la imagen
+   actualmente seleccionada (ver item-galeria.activo). Reemplaza el
+   botón "Borrar" que antes iba en cada miniatura. */
+.boton-borrar-galeria {
+  background: transparent;
+  border: 1px solid var(--metal-borde);
+  color: var(--led-error);
+  border-radius: 7px;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color .12s ease, opacity .12s ease;
+}
+
+.boton-borrar-galeria:hover:not(:disabled) {
+  border-color: var(--led-error);
+}
+
+.boton-borrar-galeria:disabled {
+  opacity: .3;
+  cursor: not-allowed;
+}
+
 
 /* ===================================================
    V1.12: Dibujo libre
