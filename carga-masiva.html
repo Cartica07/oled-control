@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OLED Remota · Carga masiva a la galería</title>
+  <title>OLED Remota · Carga privada</title>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
   <style>
     :root {
@@ -41,12 +41,12 @@
       font-family: var(--fuente-data); font-size: 13px; cursor: pointer;
     }
     .descripcion { font-size: 12px; color: #8a8070; margin: 8px 0 0; line-height: 1.4; }
-    button#botonSubir {
+    button#botonSubir, button#botonSubirCanciones {
       width: 100%; margin-top: 18px; background: var(--ambar); color: #1a1206;
       border: none; border-radius: 9px; font-weight: 700; font-size: 14px;
       padding: 13px 0; cursor: pointer;
     }
-    button#botonSubir:disabled { opacity: .5; cursor: wait; }
+    button#botonSubir:disabled, button#botonSubirCanciones:disabled { opacity: .5; cursor: wait; }
     ul#listaResultados {
       list-style: none; margin: 18px 0 0; padding: 0;
       display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px;
@@ -61,6 +61,24 @@
     }
     ul#listaResultados li.ok { border-color: var(--led-ok); }
     ul#listaResultados li.error { border-color: var(--led-error); color: #e08a7a; }
+
+    ul#listaResultadosCanciones {
+      list-style: none; margin: 18px 0 0; padding: 0;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    ul#listaResultadosCanciones li {
+      background: #0a0805; border: 1px solid var(--metal-borde); border-radius: 8px;
+      padding: 10px 12px; font-family: var(--fuente-data); font-size: 12px;
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    }
+    ul#listaResultadosCanciones li.ok { border-color: var(--led-ok); }
+    ul#listaResultadosCanciones li.error { border-color: var(--led-error); color: #e08a7a; }
+    ul#listaResultadosCanciones li button {
+      flex-shrink: 0; background: transparent; color: var(--ambar-suave);
+      border: 1px solid var(--metal-borde); border-radius: 6px; padding: 5px 10px;
+      font-family: var(--fuente-data); font-size: 11px; cursor: pointer;
+    }
+    ul#listaResultadosCanciones li button:hover { border-color: var(--ambar-suave); }
     footer { text-align: center; margin-top: 22px; font-family: var(--fuente-data); font-size: 10px; color: #4d473a; }
     footer a { color: var(--ambar-suave); }
 
@@ -102,8 +120,11 @@
 </head>
 <body>
   <div class="hoja">
-    <h1>Carga masiva a la galería</h1>
-    <p class="subtitulo">Elegí varias imágenes de una sola vez. Se procesan a 128×64 con el umbral y el dithering que elijas más abajo (por defecto igual que el panel principal: umbral 127, dithering desactivado) y se guardan en la galería con el nombre del archivo. Esta página es una herramienta aparte: no envía nada a la OLED.</p>
+    <h1>Carga privada</h1>
+    <p class="subtitulo">Esta página no está enlazada desde el panel público -- solo quien tenga esta URL puede entrar. Acá subís imágenes y canciones nuevas a la galería; el panel principal (<a href="index.html" style="color:var(--ambar-suave);">index.html</a>) solo puede elegir entre lo que ya está guardado, no puede subir nada nuevo.</p>
+
+    <h2 style="font-size:15px; color:#f3e9d4; margin:0 0 10px;">Imágenes</h2>
+    <p class="subtitulo" style="margin-bottom:16px;">Elegí varias de una sola vez. Se procesan a 128×64 con el umbral y el dithering que elijas más abajo (por defecto igual que el panel principal: umbral 127, dithering desactivado) y se guardan en la galería con el nombre del archivo.</p>
 
     <div class="panel">
       <label class="rotulo" for="archivos">Imágenes a guardar</label>
@@ -137,12 +158,24 @@
       <ul id="listaResultados"></ul>
     </div>
 
+    <h2 style="font-size:15px; color:#f3e9d4; margin:26px 0 10px;">Canciones</h2>
+    <p class="subtitulo" style="margin-bottom:16px;">Subí uno o más archivos JSON, cada uno con <code>{"nombre": "...", "notas": [[frecuencia, duraciónMs], ...]}</code> (el nombre es opcional: si falta, se usa el del archivo). Frecuencia en 0 = silencio.</p>
+
+    <div class="panel">
+      <label class="rotulo" for="archivosCancion">Canciones a guardar (JSON)</label>
+      <input type="file" id="archivosCancion" accept="application/json" multiple />
+
+      <button type="button" id="botonSubirCanciones">Subir todas a la galería</button>
+
+      <ul id="listaResultadosCanciones"></ul>
+    </div>
+
     <footer>oled-mensajes · Firebase Realtime Database · <a href="index.html">Volver al panel</a></footer>
   </div>
 
   <script type="module">
     import { procesarImagen, dibujarPreviewImagen } from './js/imageProcessor.js';
-    import { guardarImagenCatalogo } from './js/firebase.js';
+    import { guardarImagenCatalogo, guardarCancionCatalogo } from './js/firebase.js';
 
     const inputArchivos = document.getElementById('archivos');
     const boton = document.getElementById('botonSubir');
@@ -256,6 +289,124 @@
       }
 
       boton.disabled = false;
+    });
+
+    // ===================================================
+    // Canciones: subir uno o más JSON, guardar en la galería.
+    // ===================================================
+    const inputCanciones = document.getElementById('archivosCancion');
+    const botonCanciones = document.getElementById('botonSubirCanciones');
+    const listaCanciones = document.getElementById('listaResultadosCanciones');
+
+    function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+
+    // Reproductor local simple (osciladores Web Audio) -- sirve para
+    // confirmar de oído que el JSON quedó bien antes de confiar en que
+    // el dispositivo lo va a tocar correctamente. Una sola instancia a
+    // la vez: reproducir otra corta la que estuviera sonando.
+    let audioCtx = null;
+    let reproducirAbort = false;
+
+    async function reproducirNotas(notas) {
+      if (!notas || notas.length === 0) return;
+
+      reproducirAbort = true;
+      if (audioCtx) { try { audioCtx.close(); } catch (e) {} }
+      await sleep(50);
+      reproducirAbort = false;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+      try {
+        for (let i = 0; i < notas.length && !reproducirAbort; i++) {
+          const [freq, dur] = notas[i];
+          if (freq > 0) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = Math.max(20, freq);
+            gain.gain.value = 0.05;
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            await sleep(dur);
+            osc.stop();
+            await sleep(10);
+          } else {
+            await sleep(dur);
+          }
+        }
+      } finally {
+        try { audioCtx.close(); } catch (e) {}
+        audioCtx = null;
+        reproducirAbort = false;
+      }
+    }
+
+    // Valida y normaliza el JSON de una canción. Tira si el formato
+    // no sirve, para que el que sube el archivo vea exactamente cuál
+    // quedó mal en vez de un guardado silenciosamente corrupto.
+    function leerNotasDesdeJSON(json) {
+      if (!json.notas || !Array.isArray(json.notas)) {
+        throw new Error('Formato inválido: falta "notas"');
+      }
+      const notas = [];
+      for (const p of json.notas) {
+        if (!Array.isArray(p) || p.length < 2) {
+          throw new Error('Formato inválido en notas (cada una debe ser [frecuencia, duraciónMs])');
+        }
+        notas.push([Number(p[0]) || 0, Number(p[1]) || 0]);
+      }
+      return notas;
+    }
+
+    botonCanciones.addEventListener('click', async () => {
+      const files = Array.from(inputCanciones.files);
+      if (files.length === 0) {
+        alert('Elegí uno o más archivos JSON primero.');
+        return;
+      }
+
+      botonCanciones.disabled = true;
+      listaCanciones.innerHTML = '';
+
+      for (const file of files) {
+        const nombrePorDefecto = file.name.replace(/\.[^.]+$/, '');
+
+        const li = document.createElement('li');
+        const span = document.createElement('span');
+        span.textContent = `${nombrePorDefecto}: procesando…`;
+        li.appendChild(span);
+        listaCanciones.appendChild(li);
+
+        try {
+          const texto = await file.text();
+          const json = JSON.parse(texto);
+          const notas = leerNotasDesdeJSON(json);
+          const nombre = json.nombre ? String(json.nombre) : nombrePorDefecto;
+
+          const guardado = await guardarCancionCatalogo(nombre, notas, { origen: 'carga-masiva', fecha: Date.now() });
+
+          if (guardado.exito) {
+            li.classList.add('ok');
+            span.textContent = `✅ "${guardado.key}" (${notas.length} notas)`;
+
+            const botonPlay = document.createElement('button');
+            botonPlay.type = 'button';
+            botonPlay.textContent = '▶ Reproducir';
+            botonPlay.addEventListener('click', () => reproducirNotas(notas));
+            li.appendChild(botonPlay);
+          } else {
+            li.classList.add('error');
+            span.textContent = `❌ ${guardado.error || 'error al guardar'}`;
+          }
+        } catch (err) {
+          console.error(err);
+          li.classList.add('error');
+          span.textContent = `❌ ${nombrePorDefecto}: ${err.message}`;
+        }
+      }
+
+      botonCanciones.disabled = false;
     });
   </script>
 </body>
