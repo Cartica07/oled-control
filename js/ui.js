@@ -127,6 +127,7 @@ export function obtenerElementos() {
     grupoAlineacionV: document.getElementById('grupoAlineacionV'),
     grupoModo: document.getElementById('grupoModo'),
     invertido: document.getElementById('invertido'),
+    filaInvertido: document.getElementById('filaInvertido'),
     
     // Controles de imagen
     cargadorImagen: document.getElementById('cargadorImagen'),
@@ -149,6 +150,7 @@ export function obtenerElementos() {
     valorUmbralGaleria: document.getElementById('valorUmbralGaleria'),
     gridGaleria: document.getElementById('gridGaleria'),
     galeriaVacio: document.getElementById('galeriaVacio'),
+    botonBorrarGaleria: document.getElementById('botonBorrarGaleria'),
     
     // Controles de canción
     seleccionCancion: document.getElementById('seleccionCancion'),
