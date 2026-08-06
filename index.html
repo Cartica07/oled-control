@@ -40,7 +40,7 @@
 
     <!-- Selector Tipo: Texto o Imagen -->
     <div class="campo">
-      <span class="rotulo">Tipo de contenido</span>
+      <span class="rotulo rotulo-espaciado">Tipo de contenido</span>
       <div class="segmento" id="grupoTipo">
         <button type="button" data-valor="texto" class="activo">Texto</button>
         <button type="button" data-valor="imagen">Imagen</button>
@@ -91,7 +91,7 @@
       </div>
 
       <div class="campo">
-        <span class="rotulo">Modo de texto</span>
+        <span class="rotulo rotulo-espaciado">Modo de texto</span>
         <div class="modo-lista" id="grupoModo">
           <label class="modo-opcion">
             <input type="radio" name="modoTexto" value="ajustar" checked />
@@ -105,20 +105,6 @@
             <span>
               <span class="modo-nombre">scroll</span>
               <span class="modo-desc">Una sola línea que se desliza de derecha a izquierda.</span>
-            </span>
-          </label>
-          <label class="modo-opcion">
-            <input type="radio" name="modoTexto" value="reducir" />
-            <span>
-              <span class="modo-nombre">reducir</span>
-              <span class="modo-desc">Achica la letra automáticamente hasta que el texto entre.</span>
-            </span>
-          </label>
-          <label class="modo-opcion">
-            <input type="radio" name="modoTexto" value="recortar" />
-            <span>
-              <span class="modo-nombre">recortar</span>
-              <span class="modo-desc">Corta el texto y agrega "…" si no entra.</span>
             </span>
           </label>
         </div>
@@ -136,13 +122,13 @@
       </div>
 
       <div class="campo switch-fila">
-        <span class="rotulo" style="margin:0;">Difuminado (dithering)</span>
+        <span class="rotulo" style="margin:0;">Difuminado</span>
         <label class="switch">
           <input type="checkbox" id="dithering" />
           <span class="via"><span class="perilla"></span></span>
         </label>
       </div>
-      <p class="descripcion-campo">Activado: mejor para fotos y degradados. Desactivado: umbral duro, mejor para logos e íconos.</p>
+      <p class="descripcion-campo">Activado: mejor para fotos y degradados.<br>Desactivado: umbral duro, mejor para logos e íconos.</p>
 
       <div class="campo">
         <label class="rotulo" for="umbral">Umbral de binarización</label>
@@ -168,24 +154,17 @@
     <!-- Sección de CANCIÓN (oculta inicialmente) -->
     <div id="seccionCancion" style="display: none;">
 
-      <div class="campo">
-        <label class="rotulo" for="seleccionCancion">Canción</label>
-        <select id="seleccionCancion"></select>
-        <p class="descripcion-campo">Seleccioná una canción.</p>
-      </div>
-
       <div class="fila-doble">
         <div class="campo">
-          <label class="rotulo" for="inputRepeticiones">Repeticiones</label>
-          <input type="number" id="inputRepeticiones" min="1" value="1" />
+          <label class="rotulo" for="seleccionCancion">Canción</label>
+          <select id="seleccionCancion"></select>
+          <p class="descripcion-campo">Seleccioná una canción.</p>
         </div>
 
         <div class="campo">
-          <label class="rotulo">Acciones</label>
-          <div class="fila-acciones-cancion">
-            <button id="previewCancion" type="button">Previsualizar</button>
-            <input type="file" id="cargadorCancion" accept="application/json" />
-          </div>
+          <label class="rotulo" for="inputRepeticiones">Repeticiones</label>
+          <input type="number" id="inputRepeticiones" min="1" value="1" />
+          <p class="descripcion-campo">Número de veces que se repetirá la canción.</p>
         </div>
       </div>
 
@@ -219,8 +198,9 @@
 
         <div class="campo">
           <label class="rotulo">Acciones</label>
-          <div style="display:flex; gap:8px;">
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button id="botonDeshacerDibujo" type="button" class="boton-secundario">Deshacer</button>
+            <button id="botonRehacerDibujo" type="button" class="boton-secundario">Rehacer</button>
             <button id="botonLimpiarDibujo" type="button" class="boton-secundario">Limpiar</button>
           </div>
         </div>
@@ -244,20 +224,7 @@
     <!-- Sección de GALERÍA (oculta inicialmente) -->
     <div id="seccionGaleria" style="display: none;">
 
-      <div class="campo">
-        <label class="rotulo" for="cargadorImagenGaleria">Añadir una imagen nueva a la galería</label>
-        <input type="file" id="cargadorImagenGaleria" accept="image/*" />
-        <p class="descripcion-campo">Se procesa igual que en la sección Imagen.</p>
-      </div>
-
-      <div class="fila-guardar-galeria">
-        <input type="text" id="nombreGaleriaNueva" placeholder="Nombre para guardarla" maxlength="60" />
-        <button type="button" id="botonGuardarGaleriaNueva" class="boton-secundario">Guardar en la galería</button>
-      </div>
-      <p class="descripcion-campo">Si el nombre coincide con una imagen que ya está guardada, la reemplaza.</p>
-      <div id="avisoGaleriaNueva" class="aviso" style="display: none;"></div>
-
-      <div class="campo switch-fila" style="margin-top: 14px;">
+      <div class="campo switch-fila">
         <span class="rotulo" style="margin:0;">Difuminado (dithering)</span>
         <label class="switch">
           <input type="checkbox" id="ditheringGaleria" />
@@ -303,6 +270,29 @@
         <input type="checkbox" id="invertido" />
         <span class="via"><span class="perilla"></span></span>
       </label>
+    </div>
+
+    <!-- Galería: añadir/guardar, deliberadamente al final del todo (después
+         de Invertido) -- son las acciones menos frecuentes de la sección,
+         el catálogo y sus controles de reajuste van primero. -->
+    <div id="seccionGaleriaFinal" style="display: none; margin-top: 20px;">
+
+      <div class="campo">
+        <label class="rotulo" for="cargadorImagenGaleria">Añadir una imagen nueva a la galería</label>
+        <input type="file" id="cargadorImagenGaleria" accept="image/*" />
+        <p class="descripcion-campo">Se procesa igual que en la sección Imagen.</p>
+      </div>
+
+      <div class="campo">
+        <label class="rotulo" for="nombreGaleriaNueva">Guardar en la galería</label>
+        <div class="fila-guardar-galeria">
+          <input type="text" id="nombreGaleriaNueva" placeholder="Nombre para guardarla" maxlength="60" />
+          <button type="button" id="botonGuardarGaleriaNueva" class="boton-secundario">Guardar en la galería</button>
+        </div>
+        <p class="descripcion-campo">Si el nombre coincide con una imagen que ya está guardada, la reemplaza.</p>
+        <div id="avisoGaleriaNueva" class="aviso" style="display: none;"></div>
+      </div>
+
     </div>
 
     <!-- Botón Enviar y Estado -->
