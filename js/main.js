@@ -1,6 +1,6 @@
 /**main
  * Main Application
- * Orquesta los módulos de renderizado, UI y Firebase
+ * Orquesta los módulos de renderizado, UI y Firebase.
  */
 
 import { dibujarOLED } from './renderer.js';
