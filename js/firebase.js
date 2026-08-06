@@ -142,12 +142,12 @@ export async function listarCanciones() {
  */
 export async function guardarCancionCatalogo(nombre, notas, meta = {}) {
   try {
-    const safeKey = String(nombre).replace(/\./g, '_').replace(/\$/g, '_');
+    const safeKey = String(nombre).replace(/\./g, '_').replace(/\$/g, '_').replace(/[#\[\]/]/g, '_');
     await set(ref(db, `canciones/${safeKey}`), {
       notas: notas,
       meta: meta
     });
-    return { exito: true };
+    return { exito: true, key: safeKey };
   } catch (err) {
     console.error('Error al guardar canción en catálogo:', err);
     return { exito: false, error: err.message };
