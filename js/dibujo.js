@@ -28,6 +28,7 @@ const COLOR_FONDO = '#060503';
 const COLOR_TRAZO = '#4dd2ff';
 
 let ctx = null;
+let lienzoRef = null;
 let grosorActual = 2;
 let dibujando = false;
 let ultimoX = 0;
@@ -40,6 +41,13 @@ let notificarCambio = null;
 // Tope de tamaño para no crecer sin límite en una sesión larga.
 const TOPE_HISTORIAL = 60;
 let historial = [];
+
+// Pila de rehacer: lo inverso de deshacer -- cada vez que se deshace
+// un trazo, el estado que había ANTES de deshacer se guarda acá, para
+// poder volver a él con "Rehacer". Se vacía apenas se dibuja algo
+// nuevo (mismo criterio que cualquier editor: no tiene sentido
+// "rehacer" algo viejo después de haber trazado algo distinto encima).
+let rehistorial = [];
 
 function coordenadasDesdeEvento(canvas, evento) {
   const rect = canvas.getBoundingClientRect();
@@ -54,6 +62,7 @@ function coordenadasDesdeEvento(canvas, evento) {
 function guardarSnapshot(canvas) {
   historial.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
   if (historial.length > TOPE_HISTORIAL) historial.shift();
+  rehistorial = [];
 }
 
 function pintarFondo(canvas) {
@@ -76,6 +85,7 @@ function pintarFondo(canvas) {
  */
 export function inicializarDibujo(canvas, onCambio = null) {
   ctx = canvas.getContext('2d', { willReadFrequently: true });
+  lienzoRef = canvas;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.strokeStyle = COLOR_TRAZO;
@@ -143,7 +153,25 @@ export function establecerGrosor(px) {
 /** Deshace el último trazo completo. Devuelve false si no hay nada que deshacer. */
 export function deshacerTrazo() {
   if (historial.length === 0) return false;
+
+  // Antes de restaurar el paso anterior, guardamos cómo está AHORA en
+  // la pila de rehacer, para poder volver a este estado con "Rehacer".
+  rehistorial.push(ctx.getImageData(0, 0, lienzoRef.width, lienzoRef.height));
+  if (rehistorial.length > TOPE_HISTORIAL) rehistorial.shift();
+
   const snapshot = historial.pop();
+  ctx.putImageData(snapshot, 0, 0);
+  return true;
+}
+
+/** Rehace el último trazo deshecho. Devuelve false si no hay nada que rehacer. */
+export function rehacerTrazo() {
+  if (rehistorial.length === 0) return false;
+
+  historial.push(ctx.getImageData(0, 0, lienzoRef.width, lienzoRef.height));
+  if (historial.length > TOPE_HISTORIAL) historial.shift();
+
+  const snapshot = rehistorial.pop();
   ctx.putImageData(snapshot, 0, 0);
   return true;
 }
@@ -157,6 +185,11 @@ export function limpiarLienzo(canvas) {
 /** true si hay al menos un trazo para deshacer. */
 export function hayHistorial() {
   return historial.length > 0;
+}
+
+/** true si hay al menos un trazo para rehacer. */
+export function hayRehistorial() {
+  return rehistorial.length > 0;
 }
 
 /**
