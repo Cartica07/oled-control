@@ -224,7 +224,25 @@ export async function enviarEstado(estado) {
     const snapVersion = await get(ref(db, 'oled_remota/version'));
     const nuevaVersion = (snapVersion.exists() ? Number(snapVersion.val()) : 0) + 1;
 
-    const pantallaPayload = {};
+    // El texto y su configuración se guardan SIEMPRE, sin importar qué
+    // tipo esté activo ahora. Antes solo se guardaban cuando tipo ===
+    // "texto" -- al mandar una imagen o canción, set() reemplazaba
+    // todo el nodo "pantalla" y el texto desaparecía de Firebase. La
+    // próxima vez que se volvía a la sección Texto (o se recargaba la
+    // página), no había nada que restaurar y caía al default "Hola
+    // Mundo". Guardándolo siempre, el último texto enviado persiste
+    // hasta que se envíe uno nuevo, sin importar cuántas imágenes,
+    // canciones o dibujos se manden en el medio.
+    const pantallaPayload = {
+      texto: estado.texto,
+      config: {
+        tamano: estado.tamano,
+        alineacion: estado.alineacion,
+        alineacionV: estado.alineacionV,
+        invertido: estado.invertido,
+        modoTexto: estado.modoTexto
+      }
+    };
 
     if (estado.tipo === 'imagen') {
       pantallaPayload.tipo = 'imagen';
@@ -243,15 +261,6 @@ export async function enviarEstado(estado) {
     } else {
       // Texto por defecto
       pantallaPayload.tipo = 'texto';
-      pantallaPayload.texto = estado.texto;
-      pantallaPayload.config = {
-        tamano: estado.tamano,
-        alineacion: estado.alineacion,
-        alineacionV: estado.alineacionV,
-        invertido: estado.invertido,
-        modoTexto: estado.modoTexto
-      };
-
       pantallaPayload.imagen = {
         ancho: estado.imagenAncho,
         alto: estado.imagenAlto,
