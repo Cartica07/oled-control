@@ -68,6 +68,12 @@ let cancionesCatalogo = {};
 // Catálogo de imágenes guardadas cargado desde Firebase (/imagenes)
 let imagenesCatalogo = {};
 
+// V1.14: clave (nombre) de la imagen actualmente seleccionada en la
+// Galería -- separado de estadoActual.imagenData porque necesitamos
+// saber el NOMBRE para poder borrarla, no solo sus datos. Se limpia
+// cuando se borra, se sube una nueva, o se cambia de tipo.
+let galeriaSeleccionActual = null;
+
 // dataURL (128×64, ya redimensionado, SIN binarizar) de la imagen que
 // está actualmente activa -- puede venir de un archivo recién subido
 // (sección Imagen o Galería) o de una imagen del catálogo que se
@@ -248,6 +254,13 @@ function mostrarSeccionSegunTipo(tipo) {
     const el = secciones[clave];
     if (el) el.style.display = (clave === tipo) ? 'block' : 'none';
   });
+
+  // "Invertido" no tiene ningún efecto visual mientras suena una
+  // canción (la pantalla no cambia con la música), así que no
+  // corresponde mostrarlo ahí -- para el resto de los tipos sí aplica.
+  if (elementos.filaInvertido) {
+    elementos.filaInvertido.style.display = (tipo === 'cancion') ? 'none' : 'flex';
+  }
 }
 
 function cambiarTipo(nuevoTipo) {
@@ -372,7 +385,7 @@ async function manejarGuardarEnGaleria() {
 
   const nombre = (elementos.nombreGaleria && elementos.nombreGaleria.value.trim()) || '';
   if (!nombre) {
-    setAvisoGaleria('Poné un nombre para guardar la imagen en el catálogo.', 'error');
+    setAvisoGaleria('Poné un nombre para guardar la imagen en la galería.', 'error');
     return;
   }
 
@@ -393,7 +406,7 @@ async function manejarGuardarEnGaleria() {
 
   if (resultado.exito) {
     await poblarCatalogoImagenes();
-    setAvisoGaleria(`Guardada en el catálogo como "${resultado.key}"`);
+    setAvisoGaleria(`Guardada en la galería como "${resultado.key}"`);
   } else {
     setAvisoGaleria('No se pudo guardar: ' + (resultado.error || ''), 'error');
   }
@@ -424,7 +437,7 @@ function setAvisoGaleriaDibujo(text, tipo = null) {
 async function manejarGuardarDibujoEnGaleria() {
   const nombre = (elementos.nombreGaleriaDibujo && elementos.nombreGaleriaDibujo.value.trim()) || '';
   if (!nombre) {
-    setAvisoGaleriaDibujo('Poné un nombre para guardar el dibujo en el catálogo.', 'error');
+    setAvisoGaleriaDibujo('Poné un nombre para guardar el dibujo en la galería.', 'error');
     return;
   }
 
@@ -443,7 +456,7 @@ async function manejarGuardarDibujoEnGaleria() {
 
   if (resultado.exito) {
     await poblarCatalogoImagenes();
-    setAvisoGaleriaDibujo(`Guardado en el catálogo como "${resultado.key}"`);
+    setAvisoGaleriaDibujo(`Guardado en la galería como "${resultado.key}"`);
   } else {
     setAvisoGaleriaDibujo('No se pudo guardar: ' + (resultado.error || ''), 'error');
   }
@@ -476,6 +489,7 @@ function renderizarGaleria() {
     vacio.className = 'galeria-vacio';
     vacio.textContent = 'Todavía no hay imágenes guardadas.';
     grid.appendChild(vacio);
+    actualizarBotonBorrarGaleria();
     return;
   }
 
@@ -485,7 +499,7 @@ function renderizarGaleria() {
 
     const item = document.createElement('div');
     item.className = 'item-galeria';
-    if (estadoActual.tipo === 'galeria' && estadoActual.imagenData === entry.datos) {
+    if (estadoActual.tipo === 'galeria' && galeriaSeleccionActual === key) {
       item.classList.add('activo');
     }
 
@@ -506,25 +520,12 @@ function renderizarGaleria() {
     nombre.className = 'item-galeria-nombre';
     nombre.textContent = key;
 
-    const borrar = document.createElement('button');
-    borrar.type = 'button';
-    borrar.className = 'item-galeria-borrar';
-    borrar.textContent = 'Borrar';
-    borrar.addEventListener('click', async (ev) => {
-      ev.stopPropagation();
-      const resultado = await borrarImagenCatalogo(key);
-      if (resultado.exito) {
-        await poblarCatalogoImagenes();
-      } else {
-        marcarEstado('No se pudo borrar la imagen: ' + (resultado.error || ''), 'error', elementos);
-      }
-    });
-
     item.addEventListener('click', () => {
       estadoActual.tipo = 'galeria';
       estadoActual.imagenData = entry.datos;
       estadoActual.imagenAncho = entry.ancho || 128;
       estadoActual.imagenAlto = entry.alto || 64;
+      galeriaSeleccionActual = key;
 
       // Limpiar el input de "añadir nueva": si quedaba un archivo de una
       // subida anterior, no queremos que se confunda con la fuente que
@@ -545,12 +546,12 @@ function renderizarGaleria() {
           elementos.ditheringGaleria.checked = entry.meta.dithering;
         }
       } else {
-        // Guardada con una versión anterior del catálogo: no hay fuente
+        // Guardada con una versión anterior de la galería: no hay fuente
         // editable, queda como bitmap fijo.
         imagenFuenteActual = null;
       }
 
-      // Precargar el nombre: un simple click en "Guardar en el catálogo"
+      // Precargar el nombre: un simple click en "Guardar en la galería"
       // sobrescribe esta misma entrada con los cambios; para guardar
       // aparte alcanza con cambiar el nombre antes de guardar.
       if (elementos.nombreGaleriaNueva) elementos.nombreGaleriaNueva.value = key;
@@ -563,9 +564,37 @@ function renderizarGaleria() {
 
     item.appendChild(canvas);
     item.appendChild(nombre);
-    item.appendChild(borrar);
     grid.appendChild(item);
   });
+
+  actualizarBotonBorrarGaleria();
+}
+
+// V1.14: habilita el ícono de basura de la cabecera solo si hay una
+// imagen seleccionada Y esa imagen todavía existe en el catálogo en
+// memoria (por si se borró desde otra pestaña/dispositivo mientras
+// tanto).
+function actualizarBotonBorrarGaleria() {
+  if (!elementos.botonBorrarGaleria) return;
+  const haySeleccion = !!galeriaSeleccionActual && !!imagenesCatalogo[galeriaSeleccionActual];
+  elementos.botonBorrarGaleria.disabled = !haySeleccion;
+}
+
+// Borra la imagen actualmente seleccionada en la Galería (ver
+// galeriaSeleccionActual, se fija al tocar una miniatura).
+async function manejarBorrarGaleriaSeleccionada() {
+  if (!galeriaSeleccionActual) return;
+
+  const key = galeriaSeleccionActual;
+  const resultado = await borrarImagenCatalogo(key);
+
+  if (resultado.exito) {
+    galeriaSeleccionActual = null;
+    await poblarCatalogoImagenes();
+    marcarEstado(`Imagen "${key}" borrada de la galería.`, 'ok', elementos);
+  } else {
+    marcarEstado('No se pudo borrar la imagen: ' + (resultado.error || ''), 'error', elementos);
+  }
 }
 
 // Procesa un archivo nuevo subido desde la sección Galería (usa el par
@@ -611,13 +640,13 @@ function setAvisoGaleriaNueva(text, tipo = null) {
 // el nombre).
 async function manejarGuardarNuevaEnGaleria() {
   if (estadoActual.tipo !== 'galeria' || !estadoActual.imagenData) {
-    setAvisoGaleriaNueva('Primero subí una imagen nueva o seleccioná una del catálogo.', 'error');
+    setAvisoGaleriaNueva('Primero subí una imagen nueva o seleccioná una de la galería.', 'error');
     return;
   }
 
   const nombre = (elementos.nombreGaleriaNueva && elementos.nombreGaleriaNueva.value.trim()) || '';
   if (!nombre) {
-    setAvisoGaleriaNueva('Poné un nombre para guardar la imagen en el catálogo.', 'error');
+    setAvisoGaleriaNueva('Poné un nombre para guardar la imagen en la galería.', 'error');
     return;
   }
 
@@ -638,7 +667,7 @@ async function manejarGuardarNuevaEnGaleria() {
 
   if (resultado.exito) {
     await poblarCatalogoImagenes();
-    setAvisoGaleriaNueva(`Guardada en el catálogo como "${resultado.key}"`);
+    setAvisoGaleriaNueva(`Guardada en la galería como "${resultado.key}"`);
   } else {
     setAvisoGaleriaNueva('No se pudo guardar: ' + (resultado.error || ''), 'error');
   }
@@ -696,7 +725,7 @@ async function manejarSeleccionCancion() {
   }
   const entry = cancionesCatalogo[key];
   if (!entry) {
-    setAvisoCancion('No se encontró la canción en el catálogo', 'error');
+    setAvisoCancion('No se encontró la canción en la galería.', 'error');
     return;
   }
   estadoActual.cancion = key;
@@ -900,6 +929,9 @@ function configurarEventos() {
   }
   if (elementos.botonGuardarGaleriaNueva) {
     elementos.botonGuardarGaleriaNueva.addEventListener('click', manejarGuardarNuevaEnGaleria);
+  }
+  if (elementos.botonBorrarGaleria) {
+    elementos.botonBorrarGaleria.addEventListener('click', manejarBorrarGaleriaSeleccionada);
   }
 
   // V1.12: Dibujo -- grosor, deshacer, limpiar, guardar en catálogo
