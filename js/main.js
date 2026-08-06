@@ -16,6 +16,14 @@ import {
 } from './firebase.js';
 import { procesarImagen, procesarImagenDesdeDataURL, dibujarPreviewImagen } from './imageProcessor.js';
 import {
+  inicializarDibujo,
+  establecerGrosor,
+  deshacerTrazo,
+  limpiarLienzo,
+  hayHistorial,
+  obtenerResultadoImagen
+} from './dibujo.js';
+import {
   obtenerElementos,
   poblarControles,
   marcarSegmentoActivo,
@@ -159,6 +167,17 @@ function renderizar() {
     return;
   }
 
+  // V1.12: "Dibujo" tampoco toca el preview de arriba -- el propio
+  // lienzo de dibujo (#lienzoDibujo, ver seccionDibujo) ya funciona
+  // como su vista previa en tiempo real, a resolución nativa 128×64.
+  // Sin este corte, tipo="dibujo" caería por defecto en el renderizado
+  // de texto de más abajo y mostraría contenido viejo/incorrecto en el
+  // preview de arriba.
+  if (estadoActual.tipo === 'dibujo') {
+    detenerScroll();
+    return;
+  }
+
   // Si es imagen, no animar
   if (estadoActual.tipo === 'imagen') {
     detenerScroll();
@@ -185,14 +204,22 @@ function mostrarSeccionSegunTipo(tipo) {
     elementos.seccionTexto.style.display = 'block';
     elementos.seccionImagen.style.display = 'none';
     if (elementos.seccionCancion) elementos.seccionCancion.style.display = 'none';
+    if (elementos.seccionDibujo) elementos.seccionDibujo.style.display = 'none';
   } else if (tipo === 'imagen') {
     elementos.seccionTexto.style.display = 'none';
     elementos.seccionImagen.style.display = 'block';
     if (elementos.seccionCancion) elementos.seccionCancion.style.display = 'none';
+    if (elementos.seccionDibujo) elementos.seccionDibujo.style.display = 'none';
   } else if (tipo === 'cancion') {
     elementos.seccionTexto.style.display = 'none';
     elementos.seccionImagen.style.display = 'none';
     if (elementos.seccionCancion) elementos.seccionCancion.style.display = 'block';
+    if (elementos.seccionDibujo) elementos.seccionDibujo.style.display = 'none';
+  } else if (tipo === 'dibujo') {
+    elementos.seccionTexto.style.display = 'none';
+    elementos.seccionImagen.style.display = 'none';
+    if (elementos.seccionCancion) elementos.seccionCancion.style.display = 'none';
+    if (elementos.seccionDibujo) elementos.seccionDibujo.style.display = 'block';
   }
 }
 
@@ -340,6 +367,48 @@ function setAvisoGaleria(text, tipo = null) {
   elementos.avisoGaleria.textContent = text || '';
   if (tipo === 'error') elementos.avisoGaleria.classList.add('error');
   else elementos.avisoGaleria.classList.remove('error');
+}
+
+// ===================================================
+// V1.12: Dibujo -- guardar en el mismo catálogo de imágenes
+// ===================================================
+function setAvisoGaleriaDibujo(text, tipo = null) {
+  if (!elementos.avisoGaleriaDibujo) return;
+  elementos.avisoGaleriaDibujo.style.display = text ? 'block' : 'none';
+  elementos.avisoGaleriaDibujo.textContent = text || '';
+  if (tipo === 'error') elementos.avisoGaleriaDibujo.classList.add('error');
+  else elementos.avisoGaleriaDibujo.classList.remove('error');
+}
+
+// Guarda el dibujo actual en el catálogo /imagenes -- el mismo que usa
+// la sección Imagen. Convierte el lienzo a bitmap en el momento (no
+// depende de que el usuario haya tocado "Enviar" antes).
+async function manejarGuardarDibujoEnGaleria() {
+  const nombre = (elementos.nombreGaleriaDibujo && elementos.nombreGaleriaDibujo.value.trim()) || '';
+  if (!nombre) {
+    setAvisoGaleriaDibujo('Poné un nombre para guardar el dibujo en el catálogo.', 'error');
+    return;
+  }
+
+  setAvisoGaleriaDibujo('Guardando…');
+
+  const resultado_imagen = obtenerResultadoImagen(elementos.lienzoDibujo);
+
+  const resultado = await guardarImagenCatalogo(
+    nombre,
+    resultado_imagen.imagenData,
+    resultado_imagen.imagenAncho,
+    resultado_imagen.imagenAlto,
+    resultado_imagen.preprocesada,
+    { origen: 'dibujo', fecha: Date.now() }
+  );
+
+  if (resultado.exito) {
+    await poblarCatalogoImagenes();
+    setAvisoGaleriaDibujo(`Guardado en el catálogo como "${resultado.key}"`);
+  } else {
+    setAvisoGaleriaDibujo('No se pudo guardar: ' + (resultado.error || ''), 'error');
+  }
 }
 
 // ===================================================
@@ -723,6 +792,32 @@ function configurarEventos() {
     elementos.cerrarGaleria.addEventListener('click', cerrarPanelGaleria);
   }
 
+  // V1.12: Dibujo -- grosor, deshacer, limpiar, guardar en catálogo
+  if (elementos.grupoGrosor) {
+    elementos.grupoGrosor.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      const px = Number(btn.dataset.valor);
+      establecerGrosor(px);
+      marcarSegmentoActivo(elementos.grupoGrosor, btn.dataset.valor);
+    });
+  }
+  if (elementos.botonDeshacerDibujo) {
+    elementos.botonDeshacerDibujo.addEventListener('click', () => {
+      if (!deshacerTrazo()) {
+        marcarEstado('No hay nada más para deshacer.', null, elementos);
+      }
+    });
+  }
+  if (elementos.botonLimpiarDibujo) {
+    elementos.botonLimpiarDibujo.addEventListener('click', () => {
+      limpiarLienzo(elementos.lienzoDibujo);
+    });
+  }
+  if (elementos.botonGuardarGaleriaDibujo) {
+    elementos.botonGuardarGaleriaDibujo.addEventListener('click', manejarGuardarDibujoEnGaleria);
+  }
+
   // Enviar
   elementos.botonEnviar.addEventListener('click', enviarAFirebase);
 
@@ -809,6 +904,36 @@ async function enviarAFirebase() {
   activarLedTransmision(elementos);
 
   try {
+    // V1.12: Dibujo -- se convierte el lienzo a bitmap recién acá, en
+    // el momento de enviar (siempre el dibujo más reciente, no una
+    // versión vieja cacheada). Importante: se arma un payload TEMPORAL
+    // con tipo forzado a "imagen" -- NO se pisa estadoActual.tipo, así
+    // el usuario se queda en la pestaña Dibujo después de enviar, en
+    // vez de que la UI salte sola a la pestaña Imagen. Para Firebase y
+    // el ESP8266 esto es indistinguible de una imagen subida normal.
+    if (estadoActual.tipo === 'dibujo') {
+      const resultado_imagen = obtenerResultadoImagen(elementos.lienzoDibujo);
+      const payloadDibujo = Object.assign({}, estadoActual, {
+        tipo: 'imagen',
+        imagenData: resultado_imagen.imagenData,
+        imagenAncho: resultado_imagen.imagenAncho,
+        imagenAlto: resultado_imagen.imagenAlto
+      });
+
+      const resultado = await enviarEstado(payloadDibujo);
+
+      if (resultado.exito) {
+        marcarEstado(
+          `Enviado ✅ · v${resultado.version}. La OLED la toma en el próximo chequeo.`,
+          'ok',
+          elementos
+        );
+      } else {
+        marcarEstado('Error al enviar. Revisar conexión.', 'error', elementos);
+      }
+      return;
+    }
+
     // asegurar que el estadoActual tiene campos de canción cuando corresponda
     if (estadoActual.tipo === 'cancion') {
       // si el usuario eligió una canción del catálogo pero no cargó notas en memoria,
@@ -852,7 +977,11 @@ async function inicializar() {
   renderizar();
   actualizarControlesSegunOrigen();
   marcarConexion('conectando…', null, elementos);
-  
+
+  if (elementos.lienzoDibujo) {
+    inicializarDibujo(elementos.lienzoDibujo);
+  }
+
   configurarEventos();
   iniciarMonitoreoConexion();
 
