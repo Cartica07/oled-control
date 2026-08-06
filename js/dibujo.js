@@ -32,6 +32,7 @@ let grosorActual = 2;
 let dibujando = false;
 let ultimoX = 0;
 let ultimoY = 0;
+let notificarCambio = null;
 
 // Pila de deshacer: una snapshot (ImageData) por cada trazo YA
 // terminado, tomada ANTES de empezar el trazo siguiente. "Deshacer" =
@@ -64,13 +65,22 @@ function pintarFondo(canvas) {
  * Inicializa el lienzo: fondo + listeners de puntero (mouse, touch y
  * lápiz unificados vía Pointer Events). Llamar una sola vez al
  * arrancar la app, sobre el <canvas id="lienzoDibujo">.
+ *
+ * @param {HTMLCanvasElement} canvas
+ * @param {() => void} [onCambio] - V1.13: se llama cada vez que el
+ *   trazo cambia algo visible (punto nuevo, segmento nuevo), para que
+ *   el llamador pueda reflejarlo en vivo en la pantalla virtual
+ *   principal, igual que ya pasa con Texto/Imagen. No se llama en
+ *   deshacer/limpiar -- esos se disparan desde botones aparte, fuera
+ *   de este módulo, así que el llamador los refleja por su cuenta.
  */
-export function inicializarDibujo(canvas) {
+export function inicializarDibujo(canvas, onCambio = null) {
   ctx = canvas.getContext('2d', { willReadFrequently: true });
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.strokeStyle = COLOR_TRAZO;
   ctx.lineWidth = grosorActual;
+  notificarCambio = onCambio;
 
   pintarFondo(canvas);
 
@@ -93,6 +103,8 @@ export function inicializarDibujo(canvas) {
     ctx.fillStyle = COLOR_TRAZO;
     ctx.fill();
 
+    if (notificarCambio) notificarCambio();
+
     canvas.setPointerCapture(e.pointerId);
   });
 
@@ -104,6 +116,8 @@ export function inicializarDibujo(canvas) {
     ctx.moveTo(ultimoX, ultimoY);
     ctx.lineTo(p.x, p.y);
     ctx.stroke();
+
+    if (notificarCambio) notificarCambio();
 
     ultimoX = p.x;
     ultimoY = p.y;
