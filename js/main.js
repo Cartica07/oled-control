@@ -8,7 +8,6 @@ import {
   cargarEstado,
   enviarEstado,
   listarCanciones,
-  guardarCancionCatalogo,
   suscribirLastSeen,
   listarImagenes,
   guardarImagenCatalogo,
@@ -19,8 +18,10 @@ import {
   inicializarDibujo,
   establecerGrosor,
   deshacerTrazo,
+  rehacerTrazo,
   limpiarLienzo,
   hayHistorial,
+  hayRehistorial,
   obtenerResultadoImagen
 } from './dibujo.js';
 import {
@@ -124,10 +125,6 @@ function iniciarMonitoreoConexion() {
   // aunque no haya llegado ningún dato nuevo.
   setInterval(evaluarConexionDispositivo, INTERVALO_CHEQUEO_CONEXION_MS);
 }
-
-// Preview audio
-let audioCtx = null;
-let previewAbort = false;
 
 // ===================================================
 // Animación del Scroll
@@ -254,6 +251,13 @@ function mostrarSeccionSegunTipo(tipo) {
     const el = secciones[clave];
     if (el) el.style.display = (clave === tipo) ? 'block' : 'none';
   });
+
+  // "Añadir nueva" y "Guardar en la galería" viven en un contenedor
+  // aparte (después del switch global Invertido), pero solo deben
+  // verse cuando la sección Galería está activa -- se sincronizan acá.
+  if (elementos.seccionGaleriaFinal) {
+    elementos.seccionGaleriaFinal.style.display = (tipo === 'galeria') ? 'block' : 'none';
+  }
 
   // "Invertido" no tiene ningún efecto visual mientras suena una
   // canción (la pantalla no cambia con la música), así que no
@@ -738,100 +742,10 @@ async function manejarSeleccionCancion() {
   setAvisoCancion(`Canción cargada: ${key}`);
 }
 
-function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-
-async function playPreviewLocal(notas, repeticiones = 1) {
-  if (!notas || notas.length === 0) return;
-  // detener preview previo
-  previewAbort = true;
-  if (audioCtx) {
-    try { audioCtx.close(); } catch (e) {}
-  }
-  await sleep(50);
-  previewAbort = false;
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-  try {
-    for (let r = 0; r < repeticiones && !previewAbort; r++) {
-      for (let i = 0; i < notas.length && !previewAbort; i++) {
-        const [freq, dur] = notas[i];
-        if (freq > 0) {
-          const osc = audioCtx.createOscillator();
-          const gain = audioCtx.createGain();
-          osc.type = 'sine';
-          osc.frequency.value = Math.max(20, freq);
-          gain.gain.value = 0.05; // volumen bajo
-          osc.connect(gain);
-          gain.connect(audioCtx.destination);
-          osc.start();
-          await sleep(dur);
-          osc.stop();
-          // small gap handled by awaiting a tiny time to avoid clicks
-          await sleep(10);
-        } else {
-          // silencio
-          await sleep(dur);
-        }
-      }
-    }
-  } catch (e) {
-    console.error('Error en preview audio:', e);
-  } finally {
-    try { audioCtx.close(); } catch (e) {}
-    audioCtx = null;
-    previewAbort = false;
-  }
-}
-
-async function manejarCargadorCancion(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  try {
-    const text = await file.text();
-    const json = JSON.parse(text);
-    if (!json.notas || !Array.isArray(json.notas)) throw new Error('Formato inválido: falta "notas"');
-    // validar notas
-    const notas = [];
-    for (const p of json.notas) {
-      if (!Array.isArray(p) || p.length < 2) throw new Error('Formato inválido en notas');
-      const freq = Number(p[0]) || 0;
-      const dur = Number(p[1]) || 0;
-      notas.push([freq, dur]);
-    }
-    const nombre = json.nombre ? String(json.nombre) : file.name.replace(/\.[^.]+$/, '');
-    // guardar en catálogo y seleccionar
-    const result = await guardarCancionCatalogo(nombre, notas, { origen: 'upload' });
-    if (!result.exito) {
-      setAvisoCancion('No se pudo guardar canción en catálogo: ' + (result.error || ''), 'error');
-      return;
-    }
-    // actualizar catálogo en memoria y select
-    await poblarCatalogoCanciones();
-    elementos.seleccionCancion.value = nombre;
-    estadoActual.cancion = nombre;
-    estadoActual.cancionNotas = notas;
-    setAvisoCancion(`Canción subida y seleccionada: ${nombre}`);
-  } catch (err) {
-    console.error('Error al cargar canción:', err);
-    setAvisoCancion('Error al cargar canción: ' + err.message, 'error');
-  }
-}
-
-async function manejarPreviewCancion() {
-  if (!estadoActual.cancionNotas || estadoActual.cancionNotas.length === 0) {
-    setAvisoCancion('No hay notas cargadas para previsualizar', 'error');
-    return;
-  }
-  setAvisoCancion('Reproduciendo previsualización...');
-  const rep = Number(elementos.inputRepeticiones.value) || 1;
-  try {
-    await playPreviewLocal(estadoActual.cancionNotas, rep);
-    setAvisoCancion('');
-  } catch (err) {
-    console.error('Error en preview:', err);
-    setAvisoCancion('Error en previsualización', 'error');
-  }
-}
+// V1.15: la carga de canciones nuevas se privatizó -- ya no vive en este
+// panel público. El dueño del dispositivo la sube por otra vía (fuera
+// de esta página), así un visitante con el link no puede subir música
+// nueva, solo elegir entre las que ya están cargadas.
 
 // ===================================================
 // Event Listeners de Controles
@@ -953,6 +867,15 @@ function configurarEventos() {
       }
     });
   }
+  if (elementos.botonRehacerDibujo) {
+    elementos.botonRehacerDibujo.addEventListener('click', () => {
+      if (!rehacerTrazo()) {
+        marcarEstado('No hay nada más para rehacer.', null, elementos);
+      } else {
+        actualizarPreviewDesdeLienzo();
+      }
+    });
+  }
   if (elementos.botonLimpiarDibujo) {
     elementos.botonLimpiarDibujo.addEventListener('click', () => {
       limpiarLienzo(elementos.lienzoDibujo);
@@ -969,12 +892,6 @@ function configurarEventos() {
   // Canción: selección
   if (elementos.seleccionCancion) {
     elementos.seleccionCancion.addEventListener('change', manejarSeleccionCancion);
-  }
-  if (elementos.previewCancion) {
-    elementos.previewCancion.addEventListener('click', manejarPreviewCancion);
-  }
-  if (elementos.cargadorCancion) {
-    elementos.cargadorCancion.addEventListener('change', manejarCargadorCancion);
   }
   if (elementos.inputRepeticiones) {
     elementos.inputRepeticiones.addEventListener('input', (e) => {
