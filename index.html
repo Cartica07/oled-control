@@ -132,7 +132,7 @@
       <div class="campo">
         <label class="rotulo" for="cargadorImagen">Cargá una imagen</label>
         <input type="file" id="cargadorImagen" accept="image/*" />
-        <p class="descripcion-campo">Formatos: JPG, PNG, GIF, WebP. Se redimensionará a 128×64 sin distorsión, con marcos negros si es necesario.</p>
+        <p class="descripcion-campo">Formatos: JPG, PNG, GIF, WebP.</p>
       </div>
 
       <div class="campo switch-fila">
@@ -142,7 +142,7 @@
           <span class="via"><span class="perilla"></span></span>
         </label>
       </div>
-      <p class="descripcion-campo">Activado: mejor para fotos y degradados (simula tonos medios con trama de puntos). Desactivado: umbral duro, mejor para logos e íconos ya de alto contraste.</p>
+      <p class="descripcion-campo">Activado: mejor para fotos y degradados. Desactivado: umbral duro, mejor para logos e íconos.</p>
 
       <div class="campo">
         <label class="rotulo" for="umbral">Umbral de binarización</label>
@@ -150,16 +150,16 @@
           <input type="range" id="umbral" min="0" max="255" value="127" />
           <span class="valor-rango" id="valorUmbral">127</span>
         </div>
-        <p class="descripcion-campo">Ajustá la sensibilidad: 0 = todo blanco, 255 = todo negro. Valores altos = más detalles oscuros.</p>
+        <p class="descripcion-campo">Ajustá la sensibilidad: 0 = todo blanco, 255 = todo negro.</p>
       </div>
 
       <div class="campo">
-        <label class="rotulo" for="nombreGaleria">Añadir esta imagen al catálogo</label>
+        <label class="rotulo" for="nombreGaleria">Añadir esta imagen a la galería</label>
         <div class="fila-guardar-galeria">
           <input type="text" id="nombreGaleria" placeholder="Nombre para guardarla" maxlength="60" />
-          <button type="button" id="botonGuardarGaleria" class="boton-secundario">Añadir imagen al catálogo</button>
+          <button type="button" id="botonGuardarGaleria" class="boton-secundario">Añadir imagen a la galería</button>
         </div>
-        <p class="descripcion-campo">Guarda una copia de la imagen procesada de arriba para poder reutilizarla después. La sección <strong>Galería</strong> tiene el catálogo completo, con opción de editarlas o borrarlas.</p>
+        <p class="descripcion-campo">Guarda una copia de la imagen procesada de arriba para poder reutilizarla después. La sección <strong>Galería</strong> tiene la galería completa, con opción de editarlas o borrarlas.</p>
         <div id="avisoGaleria" class="aviso" style="display: none;"></div>
       </div>
 
@@ -171,7 +171,7 @@
       <div class="campo">
         <label class="rotulo" for="seleccionCancion">Canción</label>
         <select id="seleccionCancion"></select>
-        <p class="descripcion-campo">Seleccioná una canción precargada o subila en formato JSON (array de [frecuencia, durMs]).</p>
+        <p class="descripcion-campo">Seleccioná una canción.</p>
       </div>
 
       <div class="fila-doble">
@@ -182,7 +182,7 @@
 
         <div class="campo">
           <label class="rotulo">Acciones</label>
-          <div style="display:flex; gap:8px;">
+          <div class="fila-acciones-cancion">
             <button id="previewCancion" type="button">Previsualizar</button>
             <input type="file" id="cargadorCancion" accept="application/json" />
           </div>
@@ -197,8 +197,7 @@
     <div id="seccionDibujo" style="display: none;">
 
       <div class="campo">
-        <span class="rotulo">Dibujar</span>
-        <p class="descripcion-campo">Dibujá directo sobre el espacio de la pantalla (128×64). Al enviar o guardar se convierte al mismo formato que una imagen subida.</p>
+        <span class="rotulo titulo-dibujo">DIBUJAR</span>
 
         <div class="marco-dibujo">
           <canvas id="lienzoDibujo" width="128" height="64"></canvas>
@@ -227,16 +226,16 @@
         </div>
       </div>
 
-      <!-- Guardar en catálogo: mismo catálogo /imagenes que usa la
+      <!-- Guardar en galería: misma galería /imagenes que usa la
            sección Imagen -- un dibujo guardado se ve y se usa exactamente
            igual que una imagen subida guardada. -->
       <div class="campo">
-        <label class="rotulo" for="nombreGaleriaDibujo">Añadir este dibujo al catálogo</label>
+        <label class="rotulo" for="nombreGaleriaDibujo">Añadir este dibujo a la galería</label>
         <div class="fila-guardar-galeria">
           <input type="text" id="nombreGaleriaDibujo" placeholder="Nombre para guardarlo" maxlength="60" />
-          <button type="button" id="botonGuardarGaleriaDibujo" class="boton-secundario">Añadir dibujo al catálogo</button>
+          <button type="button" id="botonGuardarGaleriaDibujo" class="boton-secundario">Añadir dibujo a la galería</button>
         </div>
-        <p class="descripcion-campo">Guarda una copia del dibujo actual en el mismo catálogo de imágenes, para reusarlo después sin volver a dibujarlo.</p>
+        <p class="descripcion-campo">Guarda una copia del dibujo actual en la misma galería de imágenes, para reusarlo después.</p>
         <div id="avisoGaleriaDibujo" class="aviso" style="display: none;"></div>
       </div>
 
@@ -246,16 +245,16 @@
     <div id="seccionGaleria" style="display: none;">
 
       <div class="campo">
-        <label class="rotulo" for="cargadorImagenGaleria">Añadir una imagen nueva al catálogo</label>
+        <label class="rotulo" for="cargadorImagenGaleria">Añadir una imagen nueva a la galería</label>
         <input type="file" id="cargadorImagenGaleria" accept="image/*" />
-        <p class="descripcion-campo">Se procesa igual que en la sección Imagen (128×64, blanco y negro) y queda lista acá abajo para ponerle nombre y guardarla.</p>
+        <p class="descripcion-campo">Se procesa igual que en la sección Imagen.</p>
       </div>
 
       <div class="fila-guardar-galeria">
         <input type="text" id="nombreGaleriaNueva" placeholder="Nombre para guardarla" maxlength="60" />
-        <button type="button" id="botonGuardarGaleriaNueva" class="boton-secundario">Guardar en el catálogo</button>
+        <button type="button" id="botonGuardarGaleriaNueva" class="boton-secundario">Guardar en la galería</button>
       </div>
-      <p class="descripcion-campo">Si el nombre coincide con una imagen que ya está guardada, la reemplaza. Sirve tanto para agregar una nueva como para guardar los cambios de umbral/dithering de una que ya seleccionaste abajo.</p>
+      <p class="descripcion-campo">Si el nombre coincide con una imagen que ya está guardada, la reemplaza.</p>
       <div id="avisoGaleriaNueva" class="aviso" style="display: none;"></div>
 
       <div class="campo switch-fila" style="margin-top: 14px;">
@@ -265,7 +264,7 @@
           <span class="via"><span class="perilla"></span></span>
         </label>
       </div>
-      <p class="descripcion-campo">Activado: mejor para fotos y degradados (simula tonos medios con trama de puntos). Desactivado: umbral duro, mejor para logos e íconos ya de alto contraste.</p>
+      <p class="descripcion-campo">Activado: mejor para fotos y degradados. Desactivado: umbral duro, mejor para logos e íconos.</p>
 
       <div class="campo">
         <label class="rotulo" for="umbralGaleria">Umbral de binarización</label>
@@ -273,12 +272,23 @@
           <input type="range" id="umbralGaleria" min="0" max="255" value="127" />
           <span class="valor-rango" id="valorUmbralGaleria">127</span>
         </div>
-        <p class="descripcion-campo">Ajustá la sensibilidad: 0 = todo blanco, 255 = todo negro. Valores altos = más detalles oscuros. Se aplica a la imagen nueva que acabás de subir, o a la que hayas seleccionado del catálogo de abajo.</p>
+        <p class="descripcion-campo">Ajustá la sensibilidad: 0 = todo blanco, 255 = todo negro. Se aplica a la imagen nueva que acabás de subir, o a la que hayas seleccionado de la galería de abajo.</p>
       </div>
 
       <div class="campo">
-        <span class="rotulo">Catálogo guardado</span>
-        <p class="descripcion-campo">Tocá una imagen para verla en la pantalla de arriba, reajustarla con los controles de acá arriba, o borrarla.</p>
+        <div class="galeria-cabecera-campo">
+          <span class="rotulo" style="margin:0;">Galería guardada</span>
+          <button type="button" id="botonBorrarGaleria" class="boton-borrar-galeria" aria-label="Borrar la imagen seleccionada" title="Borrar la imagen seleccionada" disabled>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+              <path d="M10 11v6"></path>
+              <path d="M14 11v6"></path>
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+            </svg>
+          </button>
+        </div>
+        <p class="descripcion-campo">Tocá una imagen para verla en la pantalla de arriba y reajustarla con los controles de acá arriba. Para borrarla, seleccionala y tocá el ícono de arriba.</p>
         <div id="gridGaleria" class="grid-galeria">
           <p class="galeria-vacio" id="galeriaVacio">Todavía no hay imágenes guardadas.</p>
         </div>
@@ -286,8 +296,8 @@
 
     </div>
 
-    <!-- Invertido: aplica a texto, imagen, dibujo y galería (display.invertDisplay en el firmware) -->
-    <div class="campo switch-fila" style="margin-top: 10px;">
+    <!-- Invertido: aplica a texto, imagen, dibujo y galería (display.invertDisplay en el firmware). No aplica a Canción -- no hay nada visual que invertir mientras suena. -->
+    <div class="campo switch-fila" id="filaInvertido" style="margin-top: 10px;">
       <span class="rotulo" style="margin:0;">Invertido (fondo/texto)</span>
       <label class="switch">
         <input type="checkbox" id="invertido" />
