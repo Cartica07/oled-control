@@ -120,7 +120,7 @@ export async function cargarYRedimensionarDesdeDataURL(dataUrl, targetWidth, tar
  * @param {HTMLCanvasElement} canvas
  * @returns {HTMLCanvasElement} Canvas con la imagen en escala de grises
  */
-function convertirAEscalaGrises(canvas) {
+export function convertirAEscalaGrises(canvas) {
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
@@ -150,7 +150,7 @@ function convertirAEscalaGrises(canvas) {
  * @param {number} umbral - Valor de umbral (0-255, default 127)
  * @returns {{bitmap: Uint8Array, width: number, height: number}}
  */
-function convertirAMonocromatico(canvas, umbral = 127) {
+export function convertirAMonocromatico(canvas, umbral = 127) {
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
@@ -188,7 +188,7 @@ function convertirAMonocromatico(canvas, umbral = 127) {
  * @param {Uint8Array} data
  * @returns {string} Cadena Base64
  */
-function codificarBase64(data) {
+export function codificarBase64(data) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
   let result = '';
   
