@@ -217,6 +217,19 @@ export async function borrarImagenCatalogo(nombre) {
 }
 
 /**
+ * Borra una canción del catálogo (/canciones/<nombre>)
+ */
+export async function borrarCancionCatalogo(nombre) {
+  try {
+    await remove(ref(db, `canciones/${nombre}`));
+    return { exito: true };
+  } catch (err) {
+    console.error('Error al borrar canción del catálogo:', err);
+    return { exito: false, error: err.message };
+  }
+}
+
+/**
  * Envía la configuración actualizada a Firebase
  */
 export async function enviarEstado(estado) {
