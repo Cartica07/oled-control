@@ -79,6 +79,31 @@
       font-family: var(--fuente-data); font-size: 11px; cursor: pointer;
     }
     ul#listaResultadosCanciones li button:hover { border-color: var(--ambar-suave); }
+
+    ul.lista-guardadas {
+      list-style: none; margin: 0; padding: 0;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    ul.lista-guardadas li {
+      background: #0a0805; border: 1px solid var(--metal-borde); border-radius: 8px;
+      padding: 10px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    }
+    ul.lista-guardadas li.vacio {
+      color: #635a4b; font-family: var(--fuente-data); font-size: 12px; justify-content: center;
+    }
+    ul.lista-guardadas input[type="text"] {
+      flex: 1; min-width: 120px; padding: 8px 10px; background: #000;
+      border: 1px solid var(--metal-borde); border-radius: 6px; color: #f3e9d4;
+      font-family: var(--fuente-data); font-size: 12px;
+    }
+    .acciones-fila { display: flex; gap: 6px; flex-wrap: wrap; }
+    .acciones-fila button {
+      background: transparent; color: var(--ambar-suave); border: 1px solid var(--metal-borde);
+      border-radius: 6px; padding: 6px 10px; font-family: var(--fuente-data); font-size: 11px; cursor: pointer;
+    }
+    .acciones-fila button:hover { border-color: var(--ambar-suave); }
+    .acciones-fila button.borrar { color: #e08a7a; }
+    .acciones-fila button.borrar:hover { border-color: var(--led-error); }
     footer { text-align: center; margin-top: 22px; font-family: var(--fuente-data); font-size: 10px; color: #4d473a; }
     footer a { color: var(--ambar-suave); }
 
@@ -170,12 +195,21 @@
       <ul id="listaResultadosCanciones"></ul>
     </div>
 
+    <h2 style="font-size:15px; color:#f3e9d4; margin:26px 0 10px;">Canciones guardadas</h2>
+    <p class="subtitulo" style="margin-bottom:16px;">Reproducí para confirmar cómo suena, descargá el JSON para editarla y volver a subirla, cambiale el nombre, o borrala.</p>
+
+    <div class="panel">
+      <ul id="listaCancionesGuardadas" class="lista-guardadas">
+        <li class="vacio">Cargando…</li>
+      </ul>
+    </div>
+
     <footer>oled-mensajes · Firebase Realtime Database · <a href="index.html">Volver al panel</a></footer>
   </div>
 
   <script type="module">
     import { procesarImagen, dibujarPreviewImagen } from './js/imageProcessor.js';
-    import { guardarImagenCatalogo, guardarCancionCatalogo } from './js/firebase.js';
+    import { guardarImagenCatalogo, guardarCancionCatalogo, listarCanciones, borrarCancionCatalogo } from './js/firebase.js';
 
     const inputArchivos = document.getElementById('archivos');
     const boton = document.getElementById('botonSubir');
@@ -407,7 +441,133 @@
       }
 
       botonCanciones.disabled = false;
+      await cargarCancionesGuardadas();
     });
+
+    // ===================================================
+    // Canciones guardadas: reproducir, descargar, renombrar, borrar.
+    // ===================================================
+    const listaGuardadas = document.getElementById('listaCancionesGuardadas');
+    let cancionesCache = {};
+
+    async function cargarCancionesGuardadas() {
+      cancionesCache = await listarCanciones() || {};
+      renderizarCancionesGuardadas();
+    }
+
+    function renderizarCancionesGuardadas() {
+      listaGuardadas.innerHTML = '';
+      const claves = Object.keys(cancionesCache);
+
+      if (claves.length === 0) {
+        const li = document.createElement('li');
+        li.className = 'vacio';
+        li.textContent = 'Todavía no hay canciones guardadas.';
+        listaGuardadas.appendChild(li);
+        return;
+      }
+
+      claves.forEach((key) => {
+        const entry = cancionesCache[key];
+        if (!entry || !entry.notas) return;
+
+        const li = document.createElement('li');
+
+        const inputNombre = document.createElement('input');
+        inputNombre.type = 'text';
+        inputNombre.value = key;
+        inputNombre.maxLength = 60;
+
+        const filaAcciones = document.createElement('div');
+        filaAcciones.className = 'acciones-fila';
+
+        const btnReproducir = document.createElement('button');
+        btnReproducir.type = 'button';
+        btnReproducir.textContent = '▶ Reproducir';
+        btnReproducir.addEventListener('click', () => reproducirNotas(entry.notas));
+
+        const btnDescargar = document.createElement('button');
+        btnDescargar.type = 'button';
+        btnDescargar.textContent = 'Descargar';
+        btnDescargar.addEventListener('click', () => descargarCancion(key, entry));
+
+        const btnRenombrar = document.createElement('button');
+        btnRenombrar.type = 'button';
+        btnRenombrar.textContent = 'Guardar nombre';
+        btnRenombrar.addEventListener('click', () => renombrarCancion(key, inputNombre));
+
+        const btnBorrar = document.createElement('button');
+        btnBorrar.type = 'button';
+        btnBorrar.textContent = 'Borrar';
+        btnBorrar.className = 'borrar';
+        btnBorrar.addEventListener('click', () => borrarCancionGuardada(key));
+
+        filaAcciones.appendChild(btnReproducir);
+        filaAcciones.appendChild(btnDescargar);
+        filaAcciones.appendChild(btnRenombrar);
+        filaAcciones.appendChild(btnBorrar);
+
+        li.appendChild(inputNombre);
+        li.appendChild(filaAcciones);
+        listaGuardadas.appendChild(li);
+      });
+    }
+
+    // Descarga el JSON en el mismo formato que espera "Canciones a
+    // guardar" de más arriba, para poder editarlo en cualquier editor
+    // de texto y volver a subirlo tal cual.
+    function descargarCancion(nombre, entry) {
+      const payload = { nombre, notas: entry.notas };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${nombre}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    // Firebase no tiene un "mover/renombrar" atómico: se guarda una
+    // entrada nueva con el nombre nuevo (mismas notas) y, si el nombre
+    // realmente cambió, se borra la entrada vieja.
+    async function renombrarCancion(nombreOriginal, inputNombre) {
+      const nuevoNombre = inputNombre.value.trim();
+
+      if (!nuevoNombre) {
+        alert('Poné un nombre.');
+        inputNombre.value = nombreOriginal;
+        return;
+      }
+      if (nuevoNombre === nombreOriginal) return;
+
+      const entry = cancionesCache[nombreOriginal];
+      const guardado = await guardarCancionCatalogo(nuevoNombre, entry.notas, entry.meta || {});
+
+      if (!guardado.exito) {
+        alert('No se pudo renombrar: ' + (guardado.error || ''));
+        return;
+      }
+      if (guardado.key !== nombreOriginal) {
+        await borrarCancionCatalogo(nombreOriginal);
+      }
+      await cargarCancionesGuardadas();
+    }
+
+    async function borrarCancionGuardada(nombre) {
+      if (!confirm(`¿Borrar "${nombre}" de la galería? No se puede deshacer.`)) return;
+
+      const resultado = await borrarCancionCatalogo(nombre);
+      if (!resultado.exito) {
+        alert('No se pudo borrar: ' + (resultado.error || ''));
+        return;
+      }
+      await cargarCancionesGuardadas();
+    }
+
+    cargarCancionesGuardadas();
   </script>
 </body>
 </html>
