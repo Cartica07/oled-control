@@ -41,12 +41,12 @@
       font-family: var(--fuente-data); font-size: 13px; cursor: pointer;
     }
     .descripcion { font-size: 12px; color: #8a8070; margin: 8px 0 0; line-height: 1.4; }
-    button#botonSubir, button#botonSubirCanciones {
+    button#botonSubir, button#botonSubirCanciones, button#botonSubirAnimaciones {
       width: 100%; margin-top: 18px; background: var(--ambar); color: #1a1206;
       border: none; border-radius: 9px; font-weight: 700; font-size: 14px;
       padding: 13px 0; cursor: pointer;
     }
-    button#botonSubir:disabled, button#botonSubirCanciones:disabled { opacity: .5; cursor: wait; }
+    button#botonSubir:disabled, button#botonSubirCanciones:disabled, button#botonSubirAnimaciones:disabled { opacity: .5; cursor: wait; }
     ul#listaResultados {
       list-style: none; margin: 18px 0 0; padding: 0;
       display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px;
@@ -62,23 +62,27 @@
     ul#listaResultados li.ok { border-color: var(--led-ok); }
     ul#listaResultados li.error { border-color: var(--led-error); color: #e08a7a; }
 
-    ul#listaResultadosCanciones {
+    ul#listaResultadosCanciones, ul#listaResultadosAnimaciones {
       list-style: none; margin: 18px 0 0; padding: 0;
       display: flex; flex-direction: column; gap: 8px;
     }
-    ul#listaResultadosCanciones li {
+    ul#listaResultadosCanciones li, ul#listaResultadosAnimaciones li {
       background: #0a0805; border: 1px solid var(--metal-borde); border-radius: 8px;
       padding: 10px 12px; font-family: var(--fuente-data); font-size: 12px;
       display: flex; align-items: center; justify-content: space-between; gap: 10px;
     }
-    ul#listaResultadosCanciones li.ok { border-color: var(--led-ok); }
-    ul#listaResultadosCanciones li.error { border-color: var(--led-error); color: #e08a7a; }
-    ul#listaResultadosCanciones li button {
+    ul#listaResultadosCanciones li.ok, ul#listaResultadosAnimaciones li.ok { border-color: var(--led-ok); }
+    ul#listaResultadosCanciones li.error, ul#listaResultadosAnimaciones li.error { border-color: var(--led-error); color: #e08a7a; }
+    ul#listaResultadosCanciones li button, ul#listaResultadosAnimaciones li button {
       flex-shrink: 0; background: transparent; color: var(--ambar-suave);
       border: 1px solid var(--metal-borde); border-radius: 6px; padding: 5px 10px;
       font-family: var(--fuente-data); font-size: 11px; cursor: pointer;
     }
-    ul#listaResultadosCanciones li button:hover { border-color: var(--ambar-suave); }
+    ul#listaResultadosCanciones li button:hover, ul#listaResultadosAnimaciones li button:hover { border-color: var(--ambar-suave); }
+    ul#listaResultadosAnimaciones li canvas {
+      width: 64px; height: 32px; flex-shrink: 0; image-rendering: pixelated;
+      background: #000; border-radius: 4px;
+    }
 
     ul.lista-guardadas {
       list-style: none; margin: 0; padding: 0;
@@ -204,12 +208,37 @@
       </ul>
     </div>
 
+    <h2 style="font-size:15px; color:#f3e9d4; margin:26px 0 10px;">Animaciones</h2>
+    <p class="subtitulo" style="margin-bottom:16px;">Subí uno o más archivos JSON con <code>{"ancho": 128, "alto": 64, "cuadros": [{"datos": "...", "dur": ms}, ...]}</code> (el nombre sale del nombre del archivo). "datos" es el mismo bitmap 1bpp en Base64 que usan las imágenes, uno por cuadro.</p>
+
+    <div class="panel">
+      <label class="rotulo" for="archivosAnimacion">Animaciones a guardar (JSON)</label>
+      <input type="file" id="archivosAnimacion" accept="application/json" multiple />
+
+      <button type="button" id="botonSubirAnimaciones">Subir todas a la galería</button>
+
+      <ul id="listaResultadosAnimaciones"></ul>
+    </div>
+
+    <h2 style="font-size:15px; color:#f3e9d4; margin:26px 0 10px;">Animaciones guardadas</h2>
+    <p class="subtitulo" style="margin-bottom:16px;">Reproducí para ver el bucle completo antes de confiar en que quedó bien, descargá el JSON para editarlo, o borrala.</p>
+
+    <div class="panel">
+      <ul id="listaAnimacionesGuardadas" class="lista-guardadas">
+        <li class="vacio">Cargando…</li>
+      </ul>
+    </div>
+
     <footer>oled-mensajes · Firebase Realtime Database · <a href="index.html">Volver al panel</a></footer>
   </div>
 
   <script type="module">
     import { procesarImagen, dibujarPreviewImagen } from './js/imageProcessor.js';
-    import { guardarImagenCatalogo, guardarCancionCatalogo, listarCanciones, borrarCancionCatalogo } from './js/firebase.js';
+    import {
+      guardarImagenCatalogo,
+      guardarCancionCatalogo, listarCanciones, borrarCancionCatalogo,
+      guardarAnimacionCatalogo, listarAnimaciones, borrarAnimacionCatalogo
+    } from './js/firebase.js';
 
     const inputArchivos = document.getElementById('archivos');
     const boton = document.getElementById('botonSubir');
@@ -568,6 +597,242 @@
     }
 
     cargarCancionesGuardadas();
+
+    // ===================================================
+    // Animaciones: subir uno o más JSON, guardar en la galería.
+    // ===================================================
+    const inputAnimaciones = document.getElementById('archivosAnimacion');
+    const botonAnimaciones = document.getElementById('botonSubirAnimaciones');
+    const listaAnimaciones = document.getElementById('listaResultadosAnimaciones');
+
+    // Dibuja un cuadro (mismo formato 1bpp Base64 que una imagen) en un canvas.
+    function dibujarCuadroAnimacion(canvas, datosBase64, ancho, alto) {
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      dibujarPreviewImagen(canvas, datosBase64, ancho, alto, '#4dd2ff');
+    }
+
+    // Reproduce el bucle completo en un canvas ya existente. Cada
+    // animación que se está reproduciendo tiene su propio "token" para
+    // poder cortarla si se le da play a otra o se borra de la lista
+    // mientras tanto, sin que seter varios bucles superpuestos.
+    const tokensReproduccion = new WeakMap();
+
+    function reproducirAnimacionEnCanvas(canvas, ancho, alto, cuadros) {
+      if (!cuadros || cuadros.length === 0) return;
+
+      const miToken = {};
+      tokensReproduccion.set(canvas, miToken);
+      let i = 0;
+
+      function paso() {
+        if (tokensReproduccion.get(canvas) !== miToken) return; // se pidió otra cosa mientras tanto
+        const cuadro = cuadros[i];
+        dibujarCuadroAnimacion(canvas, cuadro.datos, ancho, alto);
+        i = (i + 1) % cuadros.length;
+        setTimeout(paso, cuadro.dur);
+      }
+      paso();
+    }
+
+    // Valida y normaliza el JSON de una animación.
+    function leerAnimacionDesdeJSON(json) {
+      if (!json.cuadros || !Array.isArray(json.cuadros) || json.cuadros.length === 0) {
+        throw new Error('Formato inválido: falta "cuadros"');
+      }
+      const cuadros = json.cuadros.map((c, i) => {
+        if (typeof c.datos !== 'string' || !c.datos) {
+          throw new Error(`Cuadro ${i}: falta "datos" (Base64)`);
+        }
+        return { datos: c.datos, dur: Number(c.dur) || 200 };
+      });
+      const ancho = Number(json.ancho) || 128;
+      const alto = Number(json.alto) || 64;
+      return { ancho, alto, cuadros };
+    }
+
+    botonAnimaciones.addEventListener('click', async () => {
+      const files = Array.from(inputAnimaciones.files);
+      if (files.length === 0) {
+        alert('Elegí uno o más archivos JSON primero.');
+        return;
+      }
+
+      botonAnimaciones.disabled = true;
+      listaAnimaciones.innerHTML = '';
+
+      for (const file of files) {
+        const nombrePorDefecto = file.name.replace(/\.[^.]+$/, '');
+
+        const li = document.createElement('li');
+        const canvas = document.createElement('canvas');
+        canvas.width = 128;
+        canvas.height = 64;
+        const span = document.createElement('span');
+        span.textContent = `${nombrePorDefecto}: procesando…`;
+        li.appendChild(canvas);
+        li.appendChild(span);
+        listaAnimaciones.appendChild(li);
+
+        try {
+          const texto = await file.text();
+          const json = JSON.parse(texto);
+          const { ancho, alto, cuadros } = leerAnimacionDesdeJSON(json);
+          const nombre = json.nombre ? String(json.nombre) : nombrePorDefecto;
+
+          dibujarCuadroAnimacion(canvas, cuadros[0].datos, ancho, alto);
+
+          const guardado = await guardarAnimacionCatalogo(nombre, ancho, alto, cuadros, { origen: 'carga-masiva', fecha: Date.now() });
+
+          if (guardado.exito) {
+            li.classList.add('ok');
+            span.textContent = `✅ "${guardado.key}" (${cuadros.length} cuadros)`;
+          } else {
+            li.classList.add('error');
+            span.textContent = `❌ ${guardado.error || 'error al guardar'}`;
+          }
+        } catch (err) {
+          console.error(err);
+          li.classList.add('error');
+          span.textContent = `❌ ${nombrePorDefecto}: ${err.message}`;
+        }
+      }
+
+      botonAnimaciones.disabled = false;
+      await cargarAnimacionesGuardadas();
+    });
+
+    // ===================================================
+    // Animaciones guardadas: reproducir, descargar, renombrar, borrar.
+    // ===================================================
+    const listaAnimacionesGuardadas = document.getElementById('listaAnimacionesGuardadas');
+    let animacionesCache = {};
+
+    async function cargarAnimacionesGuardadas() {
+      animacionesCache = await listarAnimaciones() || {};
+      renderizarAnimacionesGuardadas();
+    }
+
+    function renderizarAnimacionesGuardadas() {
+      listaAnimacionesGuardadas.innerHTML = '';
+      const claves = Object.keys(animacionesCache);
+
+      if (claves.length === 0) {
+        const li = document.createElement('li');
+        li.className = 'vacio';
+        li.textContent = 'Todavía no hay animaciones guardadas.';
+        listaAnimacionesGuardadas.appendChild(li);
+        return;
+      }
+
+      claves.forEach((key) => {
+        const entry = animacionesCache[key];
+        if (!entry || !entry.cuadros || entry.cuadros.length === 0) return;
+
+        const li = document.createElement('li');
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 32;
+        canvas.style.width = '64px';
+        canvas.style.height = '32px';
+        canvas.style.background = '#000';
+        canvas.style.borderRadius = '4px';
+        canvas.style.flexShrink = '0';
+        canvas.style.imageRendering = 'pixelated';
+        dibujarCuadroAnimacion(canvas, entry.cuadros[0].datos, entry.ancho, entry.alto);
+
+        const inputNombre = document.createElement('input');
+        inputNombre.type = 'text';
+        inputNombre.value = key;
+        inputNombre.maxLength = 60;
+
+        const filaAcciones = document.createElement('div');
+        filaAcciones.className = 'acciones-fila';
+
+        const btnReproducir = document.createElement('button');
+        btnReproducir.type = 'button';
+        btnReproducir.textContent = '▶ Reproducir';
+        btnReproducir.addEventListener('click', () => reproducirAnimacionEnCanvas(canvas, entry.ancho, entry.alto, entry.cuadros));
+
+        const btnDescargar = document.createElement('button');
+        btnDescargar.type = 'button';
+        btnDescargar.textContent = 'Descargar';
+        btnDescargar.addEventListener('click', () => descargarAnimacion(key, entry));
+
+        const btnRenombrar = document.createElement('button');
+        btnRenombrar.type = 'button';
+        btnRenombrar.textContent = 'Guardar nombre';
+        btnRenombrar.addEventListener('click', () => renombrarAnimacion(key, inputNombre));
+
+        const btnBorrar = document.createElement('button');
+        btnBorrar.type = 'button';
+        btnBorrar.textContent = 'Borrar';
+        btnBorrar.className = 'borrar';
+        btnBorrar.addEventListener('click', () => borrarAnimacionGuardada(key));
+
+        filaAcciones.appendChild(btnReproducir);
+        filaAcciones.appendChild(btnDescargar);
+        filaAcciones.appendChild(btnRenombrar);
+        filaAcciones.appendChild(btnBorrar);
+
+        li.appendChild(canvas);
+        li.appendChild(inputNombre);
+        li.appendChild(filaAcciones);
+        listaAnimacionesGuardadas.appendChild(li);
+      });
+    }
+
+    function descargarAnimacion(nombre, entry) {
+      const payload = { nombre, ancho: entry.ancho, alto: entry.alto, cuadros: entry.cuadros };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${nombre}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    async function renombrarAnimacion(nombreOriginal, inputNombre) {
+      const nuevoNombre = inputNombre.value.trim();
+
+      if (!nuevoNombre) {
+        alert('Poné un nombre.');
+        inputNombre.value = nombreOriginal;
+        return;
+      }
+      if (nuevoNombre === nombreOriginal) return;
+
+      const entry = animacionesCache[nombreOriginal];
+      const guardado = await guardarAnimacionCatalogo(nuevoNombre, entry.ancho, entry.alto, entry.cuadros, entry.meta || {});
+
+      if (!guardado.exito) {
+        alert('No se pudo renombrar: ' + (guardado.error || ''));
+        return;
+      }
+      if (guardado.key !== nombreOriginal) {
+        await borrarAnimacionCatalogo(nombreOriginal);
+      }
+      await cargarAnimacionesGuardadas();
+    }
+
+    async function borrarAnimacionGuardada(nombre) {
+      if (!confirm(`¿Borrar "${nombre}" de la galería? No se puede deshacer.`)) return;
+
+      const resultado = await borrarAnimacionCatalogo(nombre);
+      if (!resultado.exito) {
+        alert('No se pudo borrar: ' + (resultado.error || ''));
+        return;
+      }
+      await cargarAnimacionesGuardadas();
+    }
+
+    cargarAnimacionesGuardadas();
   </script>
 </body>
 </html>
