@@ -11,7 +11,9 @@ import {
   suscribirLastSeen,
   listarImagenes,
   guardarImagenCatalogo,
-  borrarImagenCatalogo
+  borrarImagenCatalogo,
+  listarAnimaciones,
+  borrarAnimacionCatalogo
 } from './firebase.js';
 import { procesarImagen, procesarImagenDesdeDataURL, dibujarPreviewImagen } from './imageProcessor.js';
 import {
@@ -53,7 +55,12 @@ let estadoActual = {
   // Canción
   cancion: '',
   cancionNotas: [], // [[freq,dur],...]
-  cancionRepeticiones: 1
+  cancionRepeticiones: 1,
+  // Animación (ver animacion.h en el firmware)
+  animacion: '',       // nombre de la animación seleccionada, solo informativo
+  animacionAncho: 0,
+  animacionAlto: 0,
+  animacionCuadros: [] // [{datos: base64 1bpp, dur: ms}, ...]
 };
 
 let elementos = null;
@@ -68,6 +75,14 @@ let cancionesCatalogo = {};
 
 // Catálogo de imágenes guardadas cargado desde Firebase (/imagenes)
 let imagenesCatalogo = {};
+
+// Catálogo de animaciones guardadas cargado desde Firebase (/animaciones)
+let animacionesCatalogo = {};
+
+// Clave (nombre) de la animación actualmente seleccionada en la
+// Galería -- mismo criterio que galeriaSeleccionActual pero para el
+// segundo recuadro (Animaciones).
+let animacionSeleccionActual = null;
 
 // V1.14: clave (nombre) de la imagen actualmente seleccionada en la
 // Galería -- separado de estadoActual.imagenData porque necesitamos
@@ -158,6 +173,55 @@ function iniciarScroll() {
   idAnimacionScroll = requestAnimationFrame(frame);
 }
 
+// ===================================================
+// Preview de Animaciones (moods de ojos, etc.)
+// ===================================================
+// A diferencia del scroll (velocidad constante, un solo requestAnimationFrame
+// en marcha), acá cada cuadro dura un tiempo distinto (ver animacionCuadros),
+// así que se encadena con setTimeout: dibuja el cuadro actual, programa el
+// siguiente para dentro de "dur" ms, y así en bucle.
+let idAnimacionPreview = null;
+let tokenAnimacionPreview = 0;
+
+function detenerAnimacionPreview() {
+  if (idAnimacionPreview !== null) {
+    clearTimeout(idAnimacionPreview);
+    idAnimacionPreview = null;
+  }
+  // Invalida cualquier setTimeout que ya esté "en vuelo" -- si se
+  // cambia de animación o de sección justo antes de que dispare, el
+  // callback viejo se da cuenta de que ya no es el token vigente y no
+  // hace nada, en vez de seguir animando algo que ya no corresponde.
+  tokenAnimacionPreview++;
+}
+
+function iniciarAnimacionPreview() {
+  detenerAnimacionPreview();
+
+  const cuadros = estadoActual.animacionCuadros;
+  if (!cuadros || cuadros.length === 0) return;
+
+  const miToken = tokenAnimacionPreview;
+  let i = 0;
+
+  function paso() {
+    if (miToken !== tokenAnimacionPreview) return;
+
+    const cuadro = cuadros[i];
+    dibujarOLED(elementos.canvas, Object.assign({}, estadoActual, {
+      tipo: 'imagen',
+      imagenData: cuadro.datos,
+      imagenAncho: estadoActual.animacionAncho,
+      imagenAlto: estadoActual.animacionAlto
+    }));
+
+    i = (i + 1) % cuadros.length;
+    idAnimacionPreview = setTimeout(paso, cuadro.dur);
+  }
+
+  paso();
+}
+
 function renderizar() {
   // "Cancion" no dibuja nada propio: en el dispositivo real, mandar una
   // canción NO toca la pantalla (ver pantalla.cpp -- mostrarPantalla()
@@ -167,6 +231,7 @@ function renderizar() {
   // consistente con lo que realmente pasa en la OLED física.
   if (estadoActual.tipo === 'cancion') {
     detenerScroll();
+    detenerAnimacionPreview();
     return;
   }
 
@@ -177,6 +242,7 @@ function renderizar() {
   // que una imagen, sin pisar estadoActual.tipo (sigue siendo "dibujo").
   if (estadoActual.tipo === 'dibujo') {
     detenerScroll();
+    detenerAnimacionPreview();
     actualizarPreviewDesdeLienzo();
     return;
   }
@@ -187,21 +253,34 @@ function renderizar() {
   // este dibujado puntual, igual que se hace al enviar (enviarAFirebase).
   if (estadoActual.tipo === 'imagen') {
     detenerScroll();
+    detenerAnimacionPreview();
     dibujarOLED(elementos.canvas, estadoActual);
     return;
   }
 
   if (estadoActual.tipo === 'galeria') {
     detenerScroll();
+    detenerAnimacionPreview();
     dibujarOLED(elementos.canvas, Object.assign({}, estadoActual, { tipo: 'imagen' }));
+    return;
+  }
+
+  // V1.16: animaciones de la Galería (moods de ojos, etc.) -- se
+  // reproduce el bucle completo en la pantalla virtual principal,
+  // igual que se va a ver en la OLED real una vez reproducida ahí.
+  if (estadoActual.tipo === 'animacion') {
+    detenerScroll();
+    iniciarAnimacionPreview();
     return;
   }
 
   // Si es texto y modo scroll, animar
   if (estadoActual.modoTexto === 'scroll') {
+    detenerAnimacionPreview();
     iniciarScroll();
   } else {
     detenerScroll();
+    detenerAnimacionPreview();
     dibujarOLED(elementos.canvas, estadoActual);
   }
 }
@@ -237,7 +316,14 @@ function actualizarPreviewDesdeLienzo() {
 // Gestión de Tipo de Contenido
 // ===================================================
 function mostrarSeccionSegunTipo(tipo) {
-  marcarSegmentoActivo(elementos.grupoTipo, tipo);
+  // "animacion" no es una pestaña propia: vive visualmente adentro de
+  // la sección Galería (recuadro "Animaciones"), igual que las
+  // imágenes seleccionadas se quedan en tipo "galeria" en vez de
+  // saltar a "imagen". Para elegir qué sección mostrar, se trata igual
+  // que "galeria".
+  const tipoSeccion = (tipo === 'animacion') ? 'galeria' : tipo;
+
+  marcarSegmentoActivo(elementos.grupoTipo, tipoSeccion);
 
   const secciones = {
     texto: elementos.seccionTexto,
@@ -249,21 +335,21 @@ function mostrarSeccionSegunTipo(tipo) {
 
   Object.keys(secciones).forEach((clave) => {
     const el = secciones[clave];
-    if (el) el.style.display = (clave === tipo) ? 'block' : 'none';
+    if (el) el.style.display = (clave === tipoSeccion) ? 'block' : 'none';
   });
 
   // "Añadir nueva" y "Guardar en la galería" viven en un contenedor
   // aparte (después del switch global Invertido), pero solo deben
   // verse cuando la sección Galería está activa -- se sincronizan acá.
   if (elementos.seccionGaleriaFinal) {
-    elementos.seccionGaleriaFinal.style.display = (tipo === 'galeria') ? 'block' : 'none';
+    elementos.seccionGaleriaFinal.style.display = (tipoSeccion === 'galeria') ? 'block' : 'none';
   }
 
   // "Invertido" no tiene ningún efecto visual mientras suena una
   // canción (la pantalla no cambia con la música), así que no
   // corresponde mostrarlo ahí -- para el resto de los tipos sí aplica.
   if (elementos.filaInvertido) {
-    elementos.filaInvertido.style.display = (tipo === 'cancion') ? 'none' : 'flex';
+    elementos.filaInvertido.style.display = (tipoSeccion === 'cancion') ? 'none' : 'flex';
   }
 }
 
@@ -271,10 +357,12 @@ function cambiarTipo(nuevoTipo) {
   estadoActual.tipo = nuevoTipo;
   mostrarSeccionSegunTipo(nuevoTipo);
 
-  // Al entrar a Galería, refrescar el catálogo por si se guardó algo
-  // desde otra pestaña/dispositivo mientras tanto.
+  // Al entrar a Galería, refrescar ambos catálogos por si se guardó
+  // algo desde otra pestaña/dispositivo (o desde carga-masiva.html)
+  // mientras tanto.
   if (nuevoTipo === 'galeria') {
     poblarCatalogoImagenes();
+    poblarCatalogoAnimaciones();
   }
 
   renderizar();
@@ -601,6 +689,110 @@ async function manejarBorrarGaleriaSeleccionada() {
   }
 }
 
+// ===================================================
+// Galería: recuadro de Animaciones (moods de ojos, etc.)
+// Mismo patrón que las imágenes de arriba, pero más simple: no hay
+// umbral/dithering que reajustar -- una animación es un conjunto de
+// cuadros ya armado, se elige tal cual está o no se elige. Se agregan
+// desde carga-masiva.html, no desde acá.
+// ===================================================
+async function poblarCatalogoAnimaciones() {
+  try {
+    animacionesCatalogo = await listarAnimaciones() || {};
+    renderizarAnimaciones();
+  } catch (err) {
+    console.error('Error cargando catálogo de animaciones:', err);
+  }
+}
+
+function renderizarAnimaciones() {
+  const grid = elementos.gridAnimaciones;
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  const claves = Object.keys(animacionesCatalogo);
+
+  if (claves.length === 0) {
+    const vacio = document.createElement('p');
+    vacio.className = 'galeria-vacio';
+    vacio.textContent = 'Todavía no hay animaciones guardadas.';
+    grid.appendChild(vacio);
+    actualizarBotonBorrarAnimacion();
+    return;
+  }
+
+  claves.forEach((key) => {
+    const entry = animacionesCatalogo[key];
+    if (!entry || !entry.cuadros || entry.cuadros.length === 0) return;
+
+    const item = document.createElement('div');
+    item.className = 'item-galeria';
+    if (estadoActual.tipo === 'animacion' && animacionSeleccionActual === key) {
+      item.classList.add('activo');
+    }
+
+    // Miniatura: primer cuadro nada más (mismo formato que una imagen
+    // normal, así que se reutiliza dibujarPreviewImagen tal cual).
+    const canvas = document.createElement('canvas');
+    canvas.width = entry.ancho || 128;
+    canvas.height = entry.alto || 64;
+
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    try {
+      dibujarPreviewImagen(canvas, entry.cuadros[0].datos, entry.ancho || 128, entry.alto || 64, '#4dd2ff');
+    } catch (e) {
+      console.error('Error dibujando miniatura de animación:', e);
+    }
+
+    const nombre = document.createElement('span');
+    nombre.className = 'item-galeria-nombre';
+    nombre.textContent = key;
+
+    item.addEventListener('click', () => {
+      estadoActual.tipo = 'animacion';
+      estadoActual.animacion = key;
+      estadoActual.animacionAncho = entry.ancho || 128;
+      estadoActual.animacionAlto = entry.alto || 64;
+      estadoActual.animacionCuadros = entry.cuadros;
+      animacionSeleccionActual = key;
+
+      renderizarAnimaciones(); // re-dibuja el grid para mover el resaltado "activo"
+      renderizar(); // arranca el preview en bucle en la pantalla de arriba
+      actualizarBotonBorrarAnimacion();
+      marcarEstado(`Animación "${key}" cargada desde la galería`, 'ok', elementos);
+    });
+
+    item.appendChild(canvas);
+    item.appendChild(nombre);
+    grid.appendChild(item);
+  });
+
+  actualizarBotonBorrarAnimacion();
+}
+
+function actualizarBotonBorrarAnimacion() {
+  if (!elementos.botonBorrarAnimacion) return;
+  const haySeleccion = !!animacionSeleccionActual && !!animacionesCatalogo[animacionSeleccionActual];
+  elementos.botonBorrarAnimacion.disabled = !haySeleccion;
+}
+
+async function manejarBorrarAnimacionSeleccionada() {
+  if (!animacionSeleccionActual) return;
+
+  const key = animacionSeleccionActual;
+  const resultado = await borrarAnimacionCatalogo(key);
+
+  if (resultado.exito) {
+    animacionSeleccionActual = null;
+    await poblarCatalogoAnimaciones();
+    marcarEstado(`Animación "${key}" borrada de la galería.`, 'ok', elementos);
+  } else {
+    marcarEstado('No se pudo borrar la animación: ' + (resultado.error || ''), 'error', elementos);
+  }
+}
+
 // Procesa un archivo nuevo subido desde la sección Galería (usa el par
 // umbral/dithering propio de esta sección) y lo deja listo en el
 // preview para ponerle nombre y guardarlo.
@@ -847,6 +1039,9 @@ function configurarEventos() {
   if (elementos.botonBorrarGaleria) {
     elementos.botonBorrarGaleria.addEventListener('click', manejarBorrarGaleriaSeleccionada);
   }
+  if (elementos.botonBorrarAnimacion) {
+    elementos.botonBorrarAnimacion.addEventListener('click', manejarBorrarAnimacionSeleccionada);
+  }
 
   // V1.12: Dibujo -- grosor, deshacer, limpiar, guardar en catálogo
   if (elementos.grupoGrosor) {
@@ -924,7 +1119,15 @@ async function cargarEstadoInicial() {
           imagenAlto: resultado.imagenAlto || 0,
           cancion: resultado.cancionNombre || '',
           cancionRepeticiones: resultado.cancionRepeticiones || 1,
-          cancionNotas: []
+          cancionNotas: [],
+          // V1.16: el firmware todavía no manda tipo="animacion" (falta
+          // cablear github.cpp/pantalla.cpp), pero se dejan los campos
+          // acá para cuando esté conectado -- así no hace falta tocar
+          // esto de nuevo, ya está listo del lado web.
+          animacion: resultado.animacionNombre || '',
+          animacionAncho: resultado.animacionAncho || 0,
+          animacionAlto: resultado.animacionAlto || 0,
+          animacionCuadros: resultado.animacionCuadros || []
         };
       }
 
@@ -1016,6 +1219,12 @@ async function enviarAFirebase() {
       }
       return;
     }
+
+    // V1.16: Animación -- a diferencia de Dibujo/Galería, acá NO hace
+    // falta un payload temporal con tipo forzado: estadoActual.tipo ya
+    // es "animacion" de verdad (se fija así al seleccionar una del
+    // catálogo, ver renderizarAnimaciones), así que cae directo en el
+    // enviarEstado(estadoActual) genérico de más abajo.
 
     // asegurar que el estadoActual tiene campos de canción cuando corresponda
     if (estadoActual.tipo === 'cancion') {
