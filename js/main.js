@@ -696,9 +696,48 @@ async function manejarBorrarGaleriaSeleccionada() {
 // cuadros ya armado, se elige tal cual está o no se elige. Se agregan
 // desde carga-masiva.html, no desde acá.
 // ===================================================
+// Firebase Realtime Database guarda los arrays como objetos con claves
+// "0","1","2",... y SOLO los devuelve como array de JS si esas claves
+// son consecutivas empezando en 0. Si algún cuadro se perdió al guardar
+// (índice con hueco), o si el objeto llega de cualquier otra forma no
+// estrictamente secuencial, "cuadros" vuelve como un objeto plano en
+// vez de array -- y entry.cuadros.length da "undefined" en vez de un
+// número, lo que rompía el chequeo de "vacío" y la animación
+// directamente desaparecía de la grilla sin ningún error visible.
+// Esto reconstruye el array ordenando por índice numérico, sea cual
+// sea la forma en la que haya llegado.
+function normalizarCuadros(cuadros) {
+  if (!cuadros) return [];
+  if (Array.isArray(cuadros)) return cuadros;
+  if (typeof cuadros === 'object') {
+    return Object.keys(cuadros)
+      .sort((a, b) => Number(a) - Number(b))
+      .map((k) => cuadros[k])
+      .filter(Boolean);
+  }
+  return [];
+}
+
 async function poblarCatalogoAnimaciones() {
   try {
-    animacionesCatalogo = await listarAnimaciones() || {};
+    const crudo = await listarAnimaciones() || {};
+    const claves = Object.keys(crudo);
+    console.log(`[animaciones] Firebase devolvió ${claves.length} clave(s):`, claves);
+
+    animacionesCatalogo = {};
+    claves.forEach((key) => {
+      const entry = crudo[key];
+      if (!entry) {
+        console.warn(`[animaciones] "${key}" vino vacía/null, se omite.`);
+        return;
+      }
+      const cuadros = normalizarCuadros(entry.cuadros);
+      if (cuadros.length === 0) {
+        console.warn(`[animaciones] "${key}" no tiene cuadros utilizables (forma recibida:`, entry.cuadros, ')');
+      }
+      animacionesCatalogo[key] = Object.assign({}, entry, { cuadros });
+    });
+
     renderizarAnimaciones();
   } catch (err) {
     console.error('Error cargando catálogo de animaciones:', err);
