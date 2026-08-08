@@ -224,41 +224,72 @@
     <!-- Sección de GALERÍA (oculta inicialmente) -->
     <div id="seccionGaleria" style="display: none;">
 
-      <div class="campo switch-fila">
-        <span class="rotulo" style="margin:0;">Difuminado (dithering)</span>
-        <label class="switch">
-          <input type="checkbox" id="ditheringGaleria" />
-          <span class="via"><span class="perilla"></span></span>
-        </label>
-      </div>
-      <p class="descripcion-campo">Activado: mejor para fotos y degradados. Desactivado: umbral duro, mejor para logos e íconos.</p>
+      <span class="rotulo rotulo-espaciado">Galería guardada</span>
 
-      <div class="campo">
-        <label class="rotulo" for="umbralGaleria">Umbral de binarización</label>
-        <div class="control-rango">
-          <input type="range" id="umbralGaleria" min="0" max="255" value="127" />
-          <span class="valor-rango" id="valorUmbralGaleria">127</span>
+      <!-- Recuadro 1: Imágenes estáticas -->
+      <div class="panel-galeria">
+
+        <div class="campo switch-fila">
+          <span class="rotulo" style="margin:0;">Difuminado (dithering)</span>
+          <label class="switch">
+            <input type="checkbox" id="ditheringGaleria" />
+            <span class="via"><span class="perilla"></span></span>
+          </label>
         </div>
-        <p class="descripcion-campo">Ajustá la sensibilidad: 0 = todo blanco, 255 = todo negro. Se aplica a la imagen nueva que acabás de subir, o a la que hayas seleccionado de la galería de abajo.</p>
+        <p class="descripcion-campo">Activado: mejor para fotos y degradados. Desactivado: umbral duro, mejor para logos e íconos.</p>
+
+        <div class="campo">
+          <label class="rotulo" for="umbralGaleria">Umbral de binarización</label>
+          <div class="control-rango">
+            <input type="range" id="umbralGaleria" min="0" max="255" value="127" />
+            <span class="valor-rango" id="valorUmbralGaleria">127</span>
+          </div>
+          <p class="descripcion-campo">Ajustá la sensibilidad: 0 = todo blanco, 255 = todo negro. Se aplica a la imagen nueva que acabás de subir, o a la que hayas seleccionado de la galería de abajo.</p>
+        </div>
+
+        <div class="campo">
+          <div class="galeria-cabecera-campo">
+            <span class="rotulo" style="margin:0;">Imágenes</span>
+            <button type="button" id="botonBorrarGaleria" class="boton-borrar-galeria" aria-label="Borrar la imagen seleccionada" title="Borrar la imagen seleccionada" disabled>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                <path d="M10 11v6"></path>
+                <path d="M14 11v6"></path>
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+              </svg>
+            </button>
+          </div>
+          <p class="descripcion-campo">Tocá una imagen para verla en la pantalla de arriba y reajustarla con los controles de acá arriba. Para borrarla, seleccionala y tocá el ícono de arriba.</p>
+          <div id="gridGaleria" class="grid-galeria">
+            <p class="galeria-vacio" id="galeriaVacio">Todavía no hay imágenes guardadas.</p>
+          </div>
+        </div>
+
       </div>
 
-      <div class="campo">
-        <div class="galeria-cabecera-campo">
-          <span class="rotulo" style="margin:0;">Galería guardada</span>
-          <button type="button" id="botonBorrarGaleria" class="boton-borrar-galeria" aria-label="Borrar la imagen seleccionada" title="Borrar la imagen seleccionada" disabled>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
-              <path d="M10 11v6"></path>
-              <path d="M14 11v6"></path>
-              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
-            </svg>
-          </button>
+      <!-- Recuadro 2: Animaciones -->
+      <div class="panel-galeria" style="margin-top: 20px;">
+
+        <div class="campo">
+          <div class="galeria-cabecera-campo">
+            <span class="rotulo" style="margin:0;">Animaciones</span>
+            <button type="button" id="botonBorrarAnimacion" class="boton-borrar-galeria" aria-label="Borrar la animación seleccionada" title="Borrar la animación seleccionada" disabled>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                <path d="M10 11v6"></path>
+                <path d="M14 11v6"></path>
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+              </svg>
+            </button>
+          </div>
+          <p class="descripcion-campo">Tocá una animación para verla en bucle en la pantalla de arriba. Para borrarla, seleccionala y tocá el ícono de arriba.</p>
+          <div id="gridAnimaciones" class="grid-galeria">
+            <p class="galeria-vacio" id="animacionesVacio">Todavía no hay animaciones guardadas.</p>
+          </div>
         </div>
-        <p class="descripcion-campo">Tocá una imagen para verla en la pantalla de arriba y reajustarla con los controles de acá arriba. Para borrarla, seleccionala y tocá el ícono de arriba.</p>
-        <div id="gridGaleria" class="grid-galeria">
-          <p class="galeria-vacio" id="galeriaVacio">Todavía no hay imágenes guardadas.</p>
-        </div>
+
       </div>
 
     </div>
