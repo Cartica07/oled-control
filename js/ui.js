@@ -152,6 +152,11 @@ export function obtenerElementos() {
     gridGaleria: document.getElementById('gridGaleria'),
     galeriaVacio: document.getElementById('galeriaVacio'),
     botonBorrarGaleria: document.getElementById('botonBorrarGaleria'),
+
+    // Galería: Animaciones
+    gridAnimaciones: document.getElementById('gridAnimaciones'),
+    animacionesVacio: document.getElementById('animacionesVacio'),
+    botonBorrarAnimacion: document.getElementById('botonBorrarAnimacion'),
     
     // Controles de canción
     seleccionCancion: document.getElementById('seleccionCancion'),
