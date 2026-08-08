@@ -35,6 +35,7 @@ export async function cargarEstado() {
       const config = pantalla.config || {};
       const imagen = pantalla.imagen || {};
       const cancion = pantalla.cancion || {};
+      const animacion = pantalla.animacion || {};
 
       return {
         tipo: pantalla.tipo || 'texto',
@@ -51,6 +52,13 @@ export async function cargarEstado() {
         cancionRepeticiones: Number(cancion.repeticiones) || 1,
         // NOTA: no traemos las notas completas aquí porque pueden ser grandes;
         // la web gestionará un catálogo independiente en /canciones (ver más abajo).
+        // Mismo criterio para los cuadros de animación: si vinieran, podrían
+        // pesar bastante -- pero por ahora el firmware ni siquiera manda
+        // tipo="animacion", así que esto es más que nada defensivo/a futuro.
+        animacionNombre: (typeof animacion.nombre === 'string') ? animacion.nombre : '',
+        animacionAncho: Number(animacion.ancho) || 0,
+        animacionAlto: Number(animacion.alto) || 0,
+        animacionCuadros: Array.isArray(animacion.cuadros) ? animacion.cuadros : [],
         version: Number(datos.version) || 0,
         exito: true
       };
@@ -230,6 +238,58 @@ export async function borrarCancionCatalogo(nombre) {
 }
 
 /**
+ * Catálogo de animaciones (/animaciones/<nombre>), ruta hermana de
+ * "oled_remota" -- mismo criterio que imágenes y canciones.
+ *
+ * Cada cuadro pesa bastante más que una imagen suelta (varios cuadros
+ * de 128×64 en vez de uno), así que este catálogo es el que más
+ * conviene cargar bajo demanda (recién al entrar a la sección
+ * Galería), no de entrada al abrir la página.
+ *
+ * Retorna un objeto { nombre: { ancho, alto, cuadros: [{datos, dur}, ...], meta: {...} }, ... }
+ */
+export async function listarAnimaciones() {
+  try {
+    const snap = await get(ref(db, 'animaciones'));
+    if (!snap.exists()) return {};
+    return snap.val();
+  } catch (err) {
+    console.error('Error al listar animaciones:', err);
+    return {};
+  }
+}
+
+/**
+ * Guarda una animación en el catálogo (/animaciones/<nombre>).
+ * cuadros: array de { datos: base64 1bpp (mismo formato que imagenData
+ *   / imagenAncho×imagenAlto), dur: milisegundos que dura ese cuadro }.
+ */
+export async function guardarAnimacionCatalogo(nombre, ancho, alto, cuadros, meta = {}) {
+  try {
+    const safeKey = String(nombre).replace(/\./g, '_').replace(/\$/g, '_').replace(/[#\[\]/]/g, '_');
+    const payload = { ancho, alto, cuadros, meta };
+    await set(ref(db, `animaciones/${safeKey}`), payload);
+    return { exito: true, key: safeKey };
+  } catch (err) {
+    console.error('Error al guardar animación en catálogo:', err);
+    return { exito: false, error: err.message };
+  }
+}
+
+/**
+ * Borra una animación del catálogo (/animaciones/<nombre>)
+ */
+export async function borrarAnimacionCatalogo(nombre) {
+  try {
+    await remove(ref(db, `animaciones/${nombre}`));
+    return { exito: true };
+  } catch (err) {
+    console.error('Error al borrar animación del catálogo:', err);
+    return { exito: false, error: err.message };
+  }
+}
+
+/**
  * Envía la configuración actualizada a Firebase
  */
 export async function enviarEstado(estado) {
@@ -270,6 +330,17 @@ export async function enviarEstado(estado) {
         nombre: estado.cancion || '',
         repeticiones: Number(estado.cancionRepeticiones || 1),
         notas: estado.cancionNotas || []
+      };
+    } else if (estado.tipo === 'animacion') {
+      pantallaPayload.tipo = 'animacion';
+      pantallaPayload.animacion = {
+        nombre: estado.animacion || '',
+        ancho: estado.animacionAncho,
+        alto: estado.animacionAlto,
+        // [{ datos: base64 1bpp (mismo formato que imagen.datos), dur: ms }, ...]
+        // Formato leído por animacion.h/.cpp (animacion_beginSave/appendCuadro)
+        // en el firmware -- ver ese módulo para el detalle del guardado en LittleFS.
+        cuadros: estado.animacionCuadros || []
       };
     } else {
       // Texto por defecto
